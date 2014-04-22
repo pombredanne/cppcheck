@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -65,7 +65,7 @@ static void AddFilesToList(const std::string& FileList, std::vector<std::string>
     }
 }
 
-static void AddInclPathsToList(const std::string& FileList, std::list<std::string>& PathNames)
+static void AddInclPathsToList(const std::string& FileList, std::list<std::string>* PathNames)
 {
     // to keep things initially simple, if the file can't be opened, just be
     // silent and move on
@@ -81,10 +81,17 @@ static void AddInclPathsToList(const std::string& FileList, std::list<std::strin
                 if (PathName[PathName.length()-1] != '/')
                     PathName += '/';
 
-                PathNames.push_back(PathName);
+                PathNames->push_back(PathName);
             }
         }
     }
+}
+
+static void AddPathsToSet(const std::string& FileName, std::set<std::string>* set)
+{
+    std::list<std::string> templist;
+    AddInclPathsToList(FileName, &templist);
+    set->insert(templist.begin(), templist.end());
 }
 
 CmdLineParser::CmdLineParser(Settings *settings)
@@ -124,6 +131,10 @@ bool CmdLineParser::ParseFromArgs(int argc, const char* const argv[])
         // Print out code that triggers false positive
         else if (std::strcmp(argv[i], "--debug-fp") == 0)
             _settings->debugFalsePositive = true;
+
+        // (Experimental) exception handling inside cppcheck client
+        else if (std::strcmp(argv[i], "--exception-handling") == 0)
+            _settings->exceptionHandling = true;
 
         // Inconclusive checking (still in testing phase)
         else if (std::strcmp(argv[i], "--inconclusive") == 0)
@@ -373,10 +384,6 @@ bool CmdLineParser::ParseFromArgs(int argc, const char* const argv[])
             if (define.find("=") == std::string::npos)
                 define += "=1";
 
-            // DEF= => empty define
-            else if (define.find("=") + 1U == define.size())
-                define.erase(define.size() - 1U);
-
             if (!_settings->userDefines.empty())
                 _settings->userDefines += ";";
             _settings->userDefines += define;
@@ -439,7 +446,14 @@ bool CmdLineParser::ParseFromArgs(int argc, const char* const argv[])
             _settings->userIncludes.push_back(path);
         } else if (std::strncmp(argv[i], "--includes-file=", 16) == 0) {
             // open this file and read every input file (1 file name per line)
-            AddInclPathsToList(16 + argv[i], _settings->_includePaths);
+            AddInclPathsToList(16 + argv[i], &_settings->_includePaths);
+        } else if (std::strncmp(argv[i], "--config-exclude=",17) ==0) {
+            std::string path = argv[i] + 17;
+            path = Path::fromNativeSeparators(path);
+            _settings->configExcludePaths.insert(path);
+        } else if (std::strncmp(argv[i], "--config-excludes-file=", 23) == 0) {
+            // open this file and read every input file (1 file name per line)
+            AddPathsToSet(23 + argv[i], &_settings->configExcludePaths);
         }
 
         // file list specified
@@ -469,7 +483,7 @@ bool CmdLineParser::ParseFromArgs(int argc, const char* const argv[])
 
             if (!path.empty()) {
                 path = Path::fromNativeSeparators(path);
-                path = Path::simplifyPath(path.c_str());
+                path = Path::simplifyPath(path);
                 path = Path::removeQuotationMarks(path);
 
                 if (FileLister::isDirectory(path)) {
@@ -562,6 +576,29 @@ bool CmdLineParser::ParseFromArgs(int argc, const char* const argv[])
                 PrintMessage("cppcheck: argument for '-j' is allowed to be 10000 at max.");
                 return false;
             }
+        } else if (std::strncmp(argv[i], "-l", 2) == 0) {
+            std::string numberString;
+
+            // "-l 3"
+            if (std::strcmp(argv[i], "-l") == 0) {
+                ++i;
+                if (i >= argc || argv[i][0] == '-') {
+                    PrintMessage("cppcheck: argument to '-l' is missing.");
+                    return false;
+                }
+
+                numberString = argv[i];
+            }
+
+            // "-l3"
+            else
+                numberString = argv[i]+2;
+
+            std::istringstream iss(numberString);
+            if (!(iss >> _settings->_loadAverage)) {
+                PrintMessage("cppcheck: argument to '-l' is not a number.");
+                return false;
+            }
         }
 
         // print all possible error messages..
@@ -597,8 +634,15 @@ bool CmdLineParser::ParseFromArgs(int argc, const char* const argv[])
                 _settings->_showtime = SHOWTIME_SUMMARY;
             else if (showtimeMode == "top5")
                 _settings->_showtime = SHOWTIME_TOP5;
-            else
+            else if (showtimeMode.empty())
                 _settings->_showtime = SHOWTIME_NONE;
+            else {
+                std::string message("cppcheck: error: unrecognized showtime mode: \"");
+                message += showtimeMode;
+                message +=  "\".";
+                PrintMessage(message);
+                return false;
+            }
         }
 
 #ifdef HAVE_RULES
@@ -719,7 +763,7 @@ bool CmdLineParser::ParseFromArgs(int argc, const char* const argv[])
         _settings->_maxConfigs = ~0U;
 
     if (_settings->isEnabled("unusedFunction") && _settings->_jobs > 1) {
-        PrintMessage("cppcheck: unusedFunction check can't be used with '-j' option, so it's disabled.");
+        PrintMessage("cppcheck: unusedFunction check can't be used with '-j' option. Disabling unusedFunction check.");
     }
 
     if (_settings->inconclusive && _settings->_xml && _settings->_xml_version == 1U) {
@@ -822,6 +866,13 @@ void CmdLineParser::PrintHelp()
               "                         First given path is searched for contained header\n"
               "                         files first. If paths are relative to source files,\n"
               "                         this is not needed.\n"
+              "    --config-exclude=<dir>\n"
+              "                         Path (prefix) to be excluded from configuration checking.\n"
+              "                         Preprocessor configurations defined in headers (but not sources)\n"
+              "                         matching the prefix will not be considered for evaluation\n"
+              "                         of configuration alternatives\n"
+              "    --config-excludes-file=<file>\n"
+              "                         A file that contains a list of config-excludes\n"
               "    --include=<file>\n"
               "                         Force inclusion of a file before the checked file. Can\n"
               "                         be used for example when checking the Linux kernel,\n"
@@ -841,6 +892,9 @@ void CmdLineParser::PrintHelp()
               "                         more comments, like: '// cppcheck-suppress warningId'\n"
               "                         on the lines before the warning to suppress.\n"
               "    -j <jobs>            Start [jobs] threads to do the checking simultaneously.\n"
+              "    -l <load>            Specifies that no new threads should be started if there\n"
+              "                         are other threads running and the load average is at least\n"
+              "                         load (ignored on non UNIX-like systems)\n"
               "    --language=<language>, -x <language>\n"
               "                         Forces cppcheck to check all files as the given\n"
               "                         language. Valid values are: c, c++\n"

@@ -1,6 +1,6 @@
 /**!
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2013 XhmikosR and Cppcheck team.
+ * Copyright (C) 2014 XhmikosR and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@
 
     require("shelljs/make");
     var fs = require("fs"),
-        cleanCSS = require("clean-css"),
+        CleanCSS = require("clean-css"),
         UglifyJS = require("uglify-js"),
         rootDir = __dirname + "/";      // absolute path to project's root
 
@@ -34,18 +34,17 @@
         echo("### Minifying css files...");
 
         // pack.css
-
         var inCss = cat(["site/css/normalize.css",
                          "site/css/all.css",
                          "site/css/demo.css"
         ]);
 
-        var packCss = cleanCSS.process(inCss, {
-            removeEmpty: true,
-            keepSpecialComments: 0
-        });
+        var minifier = new CleanCSS({
+                keepSpecialComments: 0,
+                compatibility: "ie8"
+            });
 
-        fs.writeFileSync("site/css/pack.css", packCss, "utf8");
+        fs.writeFileSync("site/css/pack.css", minifier.minify(inCss), "utf8");
 
         echo();
         echo("### Finished site/css/pack.css.");
@@ -67,6 +66,18 @@
 
         echo();
         echo("### Finished site/js/pack.js.");
+
+        minifiedJs = UglifyJS.minify(cat("site/js/sorttable.js"), {
+            compress: true,
+            fromString: true, // this is needed to pass JS source code instead of filenames
+            mangle: true,
+            warnings: false
+        });
+
+        fs.writeFileSync("site/js/sorttable.min.js", minifiedJs.code, "utf8");
+
+        echo();
+        echo("### Finished site/js/sorttable.min.js.");
     };
 
 

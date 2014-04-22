@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,9 +21,10 @@
 #define pathH
 //---------------------------------------------------------------------------
 
+#include "config.h"
+#include <set>
 #include <string>
 #include <vector>
-#include "config.h"
 
 /// @addtogroup Core
 /// @{
@@ -56,7 +57,7 @@ public:
      * @param originalPath path to be simplified, must have / -separators.
      * @return simplified path
      */
-    static std::string simplifyPath(const char *originalPath);
+    static std::string simplifyPath(std::string originalPath);
 
     /**
      * @brief Lookup the path part from a filename (e.g., '/tmp/a.h' -> '/tmp/', 'a.h' -> '')
@@ -109,7 +110,19 @@ public:
      * @param filename filename to check. path info is optional
      * @return returns true if the file extension indicates it should be checked
      */
-    static bool acceptFile(const std::string &filename, const class Library *library = 0);
+    static bool acceptFile(const std::string &filename) {
+        const std::set<std::string> extra;
+        return acceptFile(filename, extra);
+    }
+
+    /**
+     * @brief Check if the file extension indicates that it's a C/C++ source file.
+     * Check if the file has source file extension: *.c;*.cpp;*.cxx;*.c++;*.cc;*.txx
+     * @param filename filename to check. path info is optional
+     * @param extra    extra file extensions
+     * @return returns true if the file extension indicates it should be checked
+     */
+    static bool acceptFile(const std::string &filename, const std::set<std::string> &extra);
 
     /**
      * @brief Identify language based on file extension.

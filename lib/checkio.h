@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -72,9 +72,8 @@ private:
     class ArgumentInfo {
     public:
         ArgumentInfo(const Token *arg, const Settings *settings);
-        ~ArgumentInfo() {
-            delete tempToken;
-        }
+        ~ArgumentInfo();
+
         bool isArrayOrPointer() const;
         bool isComplexType() const;
         bool isKnownType() const;
@@ -101,6 +100,7 @@ private:
     void readWriteOnlyFileError(const Token *tok);
     void writeReadOnlyFileError(const Token *tok);
     void useClosedFileError(const Token *tok);
+    void seekOnAppendedFileError(const Token *tok);
     void invalidScanfError(const Token *tok, bool portability);
     void wrongPrintfScanfArgumentsError(const Token* tok,
                                         const std::string &function,
@@ -111,7 +111,7 @@ private:
     void invalidScanfArgTypeError_s(const Token* tok, unsigned int numFormat, const std::string& specifier, const ArgumentInfo* argInfo);
     void invalidScanfArgTypeError_int(const Token* tok, unsigned int numFormat, const std::string& specifier, const ArgumentInfo* argInfo, bool isUnsigned);
     void invalidScanfArgTypeError_float(const Token* tok, unsigned int numFormat, const std::string& specifier, const ArgumentInfo* argInfo);
-    void invalidPrintfArgTypeError_s(const Token* tok, unsigned int numFormat);
+    void invalidPrintfArgTypeError_s(const Token* tok, unsigned int numFormat, const ArgumentInfo* argInfo);
     void invalidPrintfArgTypeError_n(const Token* tok, unsigned int numFormat, const ArgumentInfo* argInfo);
     void invalidPrintfArgTypeError_p(const Token* tok, unsigned int numFormat, const ArgumentInfo* argInfo);
     void invalidPrintfArgTypeError_int(const Token* tok, unsigned int numFormat, const std::string& specifier, const ArgumentInfo* argInfo);
@@ -131,12 +131,13 @@ private:
         c.readWriteOnlyFileError(0);
         c.writeReadOnlyFileError(0);
         c.useClosedFileError(0);
+        c.seekOnAppendedFileError(0);
         c.invalidScanfError(0, false);
         c.wrongPrintfScanfArgumentsError(0,"printf",3,2);
         c.invalidScanfArgTypeError_s(0, 1, "s", NULL);
         c.invalidScanfArgTypeError_int(0, 1, "d", NULL, false);
         c.invalidScanfArgTypeError_float(0, 1, "f", NULL);
-        c.invalidPrintfArgTypeError_s(0, 1);
+        c.invalidPrintfArgTypeError_s(0, 1, NULL);
         c.invalidPrintfArgTypeError_n(0, 1, NULL);
         c.invalidPrintfArgTypeError_p(0, 1, NULL);
         c.invalidPrintfArgTypeError_int(0, 1, "X", NULL);
@@ -158,6 +159,7 @@ private:
                "* Use a file that has been closed\n"
                "* File input/output without positioning results in undefined behaviour\n"
                "* Read to a file that has only been opened for writing (or vice versa)\n"
+               "* Repositioning operation on a file opened in append mode\n"
                "* Using fflush() on an input stream\n"
                "* Invalid usage of output stream. For example: 'std::cout << std::cout;'\n"
                "* Wrong number of arguments given to 'printf' or 'scanf;'\n";

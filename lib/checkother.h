@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,6 +29,10 @@
 class Token;
 class Function;
 class Variable;
+
+/** Is expressions same? */
+bool isSameExpression(const Token *tok1, const Token *tok2, const std::set<std::string> &constFunctions);
+
 
 /// @addtogroup Checks
 /// @{
@@ -61,7 +65,6 @@ public:
         checkOther.checkRedundantAssignmentInSwitch();
         checkOther.checkSuspiciousCaseInSwitch();
         checkOther.checkSelfAssignment();
-        checkOther.checkDuplicateIf();
         checkOther.checkDuplicateBranch();
         checkOther.checkDuplicateExpression();
         checkOther.checkUnreachableCode();
@@ -90,14 +93,13 @@ public:
 
         checkOther.invalidFunctionUsage();
         checkOther.checkZeroDivision();
-        checkOther.checkZeroDivisionOrUselessCondition();
         checkOther.checkMathFunctions();
-        checkOther.checkCCTypeFunctions();
 
         checkOther.redundantGetAndSetUserId();
         checkOther.checkIncorrectLogicOperator();
         checkOther.checkMisusedScopedObject();
         checkOther.checkMemsetZeroBytes();
+        checkOther.checkMemsetInvalid2ndParam();
         checkOther.checkIncorrectStringCompare();
         checkOther.checkSwitchCaseFallThrough();
         checkOther.checkAlwaysTrueOrFalseStringCompare();
@@ -109,7 +111,6 @@ public:
         checkOther.checkRedundantCopy();
         checkOther.checkNegativeBitwiseShift();
         checkOther.checkSuspiciousEqualityComparison();
-        checkOther.checkSleepTimeInterval();
         checkOther.checkComparisonFunctionIsAlwaysTrueOrFalse();
     }
 
@@ -132,11 +133,12 @@ public:
     void invalidPointerCast();
 
     /**
-     * @brief Invalid function usage (invalid radix / overlapping data)
+     * @brief Invalid function usage (invalid input value / overlapping data)
      *
      * %Check that given function parameters are valid according to the standard
      * - wrong radix given for strtol/strtoul
      * - overlapping data when using sprintf/snprintf
+     * - wrong input value according to library
      */
     void invalidFunctionUsage();
 
@@ -174,9 +176,6 @@ public:
     /** @brief %Check for parameters given to math function that do not make sense*/
     void checkMathFunctions();
 
-    /** @brief %Check for parameters given to cctype function that do make error*/
-    void checkCCTypeFunctions();
-
     /** @brief % Check for seteuid(geteuid()) or setuid(getuid())*/
     void redundantGetAndSetUserId();
 
@@ -206,6 +205,9 @@ public:
 
     /** @brief %Check for filling zero bytes with memset() */
     void checkMemsetZeroBytes();
+
+    /** @brief %Check for invalid 2nd parameter of memset() */
+    void checkMemsetInvalid2ndParam();
 
     /** @brief %Check for using bad usage of strncmp and substr */
     void checkIncorrectStringCompare();
@@ -263,11 +265,8 @@ public:
     /** @brief %Check to avoid casting a return value to unsigned char and then back to integer type.  */
     void checkCastIntToCharAndBack();
 
-    /** @brief %Check providing too big sleep time intervals on POSIX systems. */
-    void checkSleepTimeInterval();
-
-    /** @brief %Check for using of comparision functions evaluating always to true or false. */
-    void checkComparisonFunctionIsAlwaysTrueOrFalse(void);
+    /** @brief %Check for using of comparison functions evaluating always to true or false. */
+    void checkComparisonFunctionIsAlwaysTrueOrFalse();
 
 private:
     bool isUnsigned(const Variable *var) const;
@@ -275,18 +274,18 @@ private:
 
     // Error messages..
     void checkComparisonFunctionIsAlwaysTrueOrFalseError(const Token* tok, const std::string &strFunctionName, const std::string &varName, const bool result);
-    void checkSleepTimeError(const Token *tok, const std::string &strDim);
     void checkCastIntToCharAndBackError(const Token *tok, const std::string &strFunctionName);
     void checkPipeParameterSizeError(const Token *tok, const std::string &strVarName, const std::string &strDim);
-    void oppositeInnerConditionError(const Token *tok);
+    void oppositeInnerConditionError(const Token *tok1, const Token* tok2);
     void clarifyCalculationError(const Token *tok, const std::string &op);
     void clarifyConditionError(const Token *tok, bool assign, bool boolop);
     void clarifyStatementError(const Token* tok);
     void redundantGetAndSetUserIdError(const Token *tok);
     void cstyleCastError(const Token *tok);
     void invalidPointerCastError(const Token* tok, const std::string& from, const std::string& to, bool inconclusive);
-    void dangerousUsageStrtolError(const Token *tok, const std::string& funcname);
     void sprintfOverlappingDataError(const Token *tok, const std::string &varname);
+    void invalidFunctionArgError(const Token *tok, const std::string &functionName, int argnr, const std::string &validstr);
+    void invalidFunctionArgBoolError(const Token *tok, const std::string &functionName, int argnr);
     void udivError(const Token *tok, bool inconclusive);
     void passedByValueError(const Token *tok, const std::string &parname);
     void constStatementError(const Token *tok, const std::string &type);
@@ -294,11 +293,10 @@ private:
     void charBitOpError(const Token *tok);
     void variableScopeError(const Token *tok, const std::string &varname);
     void strPlusCharError(const Token *tok);
-    void zerodivError(const Token *tok);
-    void zerodivcondError(const Token *tokcond, const Token *tokdiv);
+    void zerodivError(const Token *tok, bool inconclusive);
+    void zerodivcondError(const Token *tokcond, const Token *tokdiv, bool inconclusive);
     void nanInArithmeticExpressionError(const Token *tok);
     void mathfunctionCallError(const Token *tok, const unsigned int numParam = 1);
-    void cctypefunctionCallError(const Token *tok, const std::string &functionName, const std::string &value);
     void redundantAssignmentError(const Token *tok1, const Token* tok2, const std::string& var, bool inconclusive);
     void redundantAssignmentInSwitchError(const Token *tok1, const Token *tok2, const std::string &var);
     void redundantCopyError(const Token *tok1, const Token* tok2, const std::string& var);
@@ -312,6 +310,8 @@ private:
     void redundantConditionError(const Token *tok, const std::string &text);
     void misusedScopeObjectError(const Token *tok, const std::string &varname);
     void memsetZeroBytesError(const Token *tok, const std::string &varname);
+    void memsetFloatError(const Token *tok, const std::string &var_value);
+    void memsetValueOutOfRangeError(const Token *tok, const std::string &value);
     void incorrectStringCompareError(const Token *tok, const std::string& func, const std::string &string);
     void incorrectStringBooleanError(const Token *tok, const std::string& string);
     void duplicateIfError(const Token *tok1, const Token *tok2);
@@ -340,16 +340,17 @@ private:
 
         // error
         c.sprintfOverlappingDataError(0, "varname");
+        c.invalidFunctionArgError(0, "func_name", 1, "1-4");
+        c.invalidFunctionArgBoolError(0, "func_name", 1);
         c.udivError(0, false);
-        c.zerodivError(0);
-        c.zerodivcondError(0,0);
+        c.zerodivError(0, false);
+        c.zerodivcondError(0,0,false);
         c.mathfunctionCallError(0);
         c.misusedScopeObjectError(NULL, "varname");
         c.doubleFreeError(0, "varname");
         c.invalidPointerCastError(0, "float", "double", false);
         c.negativeBitwiseShiftError(0);
         c.checkPipeParameterSizeError(0, "varname", "dimension");
-        c.checkSleepTimeError(0,"dimension");
 
         //performance
         c.redundantCopyError(0, "varname");
@@ -359,9 +360,8 @@ private:
         // style/warning
         c.checkComparisonFunctionIsAlwaysTrueOrFalseError(0,"isless","varName",false);
         c.checkCastIntToCharAndBackError(0,"func_name");
-        c.oppositeInnerConditionError(0);
+        c.oppositeInnerConditionError(0, 0);
         c.cstyleCastError(0);
-        c.dangerousUsageStrtolError(0, "strtol");
         c.passedByValueError(0, "parametername");
         c.constStatementError(0, "type");
         c.charArrayIndexError(0);
@@ -377,13 +377,14 @@ private:
         c.incorrectLogicOperatorError(0, "foo > 3 && foo < 4", true);
         c.redundantConditionError(0, "If x > 10 the condition x > 11 is always true.");
         c.memsetZeroBytesError(0, "varname");
+        c.memsetFloatError(0, "varname");
+        c.memsetValueOutOfRangeError(0, "varname");
         c.clarifyCalculationError(0, "+");
         c.clarifyConditionError(0, true, false);
         c.clarifyStatementError(0);
         c.incorrectStringCompareError(0, "substr", "\"Hello World\"");
         c.suspiciousStringCompareError(0, "foo");
         c.incorrectStringBooleanError(0, "\"Hello World\"");
-        c.duplicateIfError(0, 0);
         c.duplicateBranchError(0, 0);
         c.duplicateExpressionError(0, 0, "&&");
         c.alwaysTrueFalseStringCompareError(0, "str1", "str2");
@@ -395,7 +396,6 @@ private:
         c.pointerLessThanZeroError(0, false);
         c.pointerPositiveError(0, false);
         c.SuspiciousSemicolonError(0);
-        c.cctypefunctionCallError(0, "funname", "value");
         c.moduloAlwaysTrueFalseError(0, "1");
         c.incompleteArrayFillError(0, "buffer", "memset", false);
         c.varFuncNullUBError(0);
@@ -421,21 +421,24 @@ private:
                "* bitwise operation with negative right operand\n"
                "* provide wrong dimensioned array to pipe() system command (--std=posix)\n"
                "* cast the return values of getc(),fgetc() and getchar() to character and compare it to EOF\n"
-               "* provide too big sleep times on POSIX systems\n"
+               "* invalid input values for functions\n"
 
                // warning
                "* either division by zero or useless condition\n"
+               "* memset() with a value out of range as the 2nd parameter\n"
 
-               //performance
+               // performance
                "* redundant data copying for const variable\n"
                "* subsequent assignment or copying to a variable or buffer\n"
+
+               // portability
+               "* memset() with a float as the 2nd parameter\n"
 
                // style
                "* Find dead code which is inaccessible due to the counter-conditions check in nested if statements\n"
                "* C-style pointer cast in cpp file\n"
                "* casting between incompatible pointer types\n"
                "* redundant if\n"
-               "* bad usage of the function 'strtol'\n"
                "* [[CheckUnsignedDivision|unsigned division]]\n"
                "* passing parameter by value\n"
                "* [[IncompleteStatement|Incomplete statement]]\n"
@@ -462,7 +465,6 @@ private:
                "* testing if unsigned variable is negative\n"
                "* testing is unsigned variable is positive\n"
                "* Suspicious use of ; at the end of 'if/for/while' statement.\n"
-               "* incorrect usage of functions from ctype library.\n"
                "* Comparisons of modulo results that are always true/false.\n"
                "* Array filled incompletely using memset/memcpy/memmove.\n"
                "* redundant get and set function of user id (--std=posix).\n"
@@ -470,16 +472,6 @@ private:
                "* NaN (not a number) value used in arithmetic expression.\n"
                "* comma in return statement (the comma can easily be misread as a semicolon).\n";
     }
-
-    void checkExpressionRange(const std::list<const Function*> &constFunctions,
-                              const Token *start,
-                              const Token *end,
-                              const std::string &toCheck);
-
-    void complexDuplicateExpressionCheck(const std::list<const Function*> &constFunctions,
-                                         const Token *classStart,
-                                         const std::string &toCheck,
-                                         const std::string &alt);
 };
 /// @}
 //---------------------------------------------------------------------------

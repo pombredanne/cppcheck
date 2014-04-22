@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,13 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if defined(__GNUC__) && (defined(_WIN32) || defined(__CYGWIN__))
+#undef __STRICT_ANSI__
+#endif
 #include <algorithm>
 #include <vector>
 #include <sstream>
 #include <cstring>
 #include <cctype>
 #include "path.h"
-#include "library.h"
 
 /** Is the filesystem case insensitive? */
 static bool caseInsensitiveFilesystem()
@@ -56,26 +58,26 @@ std::string Path::fromNativeSeparators(std::string path)
     return path;
 }
 
-std::string Path::simplifyPath(const char *originalPath)
+std::string Path::simplifyPath(std::string originalPath)
 {
     // Skip ./ at the beginning
-    if (std::strlen(originalPath) > 2 && originalPath[0] == '.' &&
+    if (originalPath.size() > 2 && originalPath[0] == '.' &&
         originalPath[1] == '/') {
-        originalPath += 2;
+        originalPath = originalPath.erase(0, 2);
     }
 
     std::string subPath = "";
     std::vector<std::string> pathParts;
-    for (; *originalPath; ++originalPath) {
-        if (*originalPath == '/' || *originalPath == '\\') {
+    for (std::size_t i = 0; i < originalPath.size(); ++i) {
+        if (originalPath[i] == '/' || originalPath[i] == '\\') {
             if (subPath.length() > 0) {
                 pathParts.push_back(subPath);
                 subPath = "";
             }
 
-            pathParts.push_back(std::string(1 , *originalPath));
+            pathParts.push_back(std::string(1 , originalPath[i]));
         } else
-            subPath.append(1, *originalPath);
+            subPath.append(1, originalPath[i]);
     }
 
     if (subPath.length() > 0)
@@ -122,12 +124,12 @@ bool Path::sameFileName(const std::string &fname1, const std::string &fname2)
 {
 #if defined(__linux__) || defined(__sun) || defined(__hpux)
     return bool(fname1 == fname2);
+#elif defined(_MSC_VER) || (defined(__GNUC__) && defined(_WIN32))
+    return bool(_stricmp(fname1.c_str(), fname2.c_str()) == 0);
 #elif defined(__GNUC__)
     return bool(strcasecmp(fname1.c_str(), fname2.c_str()) == 0);
 #elif defined(__BORLANDC__)
     return bool(stricmp(fname1.c_str(), fname2.c_str()) == 0);
-#elif defined(_MSC_VER)
-    return bool(_stricmp(fname1.c_str(), fname2.c_str()) == 0);
 #else
 #error Platform filename compare function needed
 #endif
@@ -207,9 +209,9 @@ bool Path::isCPP(const std::string &path)
     return (getFilenameExtension(path) == ".C");
 }
 
-bool Path::acceptFile(const std::string &path, const class Library *library)
+bool Path::acceptFile(const std::string &path, const std::set<std::string> &extra)
 {
-    return !Path::isHeader(path) && (Path::isCPP(path) || Path::isC(path) || (library ? library->acceptFile(path) : false));
+    return !Path::isHeader(path) && (Path::isCPP(path) || Path::isC(path) || extra.find(getFilenameExtension(path)) != extra.end());
 }
 
 bool Path::isHeader(const std::string &path)

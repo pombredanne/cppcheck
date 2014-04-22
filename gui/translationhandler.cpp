@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,8 @@
 #include <QDebug>
 #include <QLocale>
 #include <QMessageBox>
+#include <QSettings>
+#include <QFileInfo>
 #include "translationhandler.h"
 
 // Provide own translations for standard buttons. This (garbage) code is needed to enforce them to appear in .ts files even after "lupdate gui.pro"
@@ -97,7 +99,23 @@ bool TranslationHandler::SetLanguage(const QString &code)
         mTranslator = new QTranslator(this);
 
     //Load the new language
-    QString translationFile = "lang/" + mTranslations[index].mFilename;
+    const QString appPath = QFileInfo(QCoreApplication::applicationFilePath()).canonicalPath();
+
+    QSettings settings;
+    QString datadir = settings.value("DATADIR").toString();
+    if (datadir.isEmpty())
+        datadir = appPath;
+
+    QString translationFile;
+    if (QFile::exists(datadir + "/lang/" + mTranslations[index].mFilename + ".qm"))
+        translationFile = datadir + "/lang/" + mTranslations[index].mFilename + ".qm";
+
+    else if (QFile::exists(datadir + "/" + mTranslations[index].mFilename + ".qm"))
+        translationFile = datadir + "/" + mTranslations[index].mFilename + ".qm";
+
+    else
+        translationFile = appPath + "/" + mTranslations[index].mFilename + ".qm";
+
     if (!mTranslator->load(translationFile) && !failure) {
         translationFile += ".qm";
         //If it failed, lets check if the default file exists
@@ -141,13 +159,8 @@ QString TranslationHandler::GetCurrentLanguage() const
 
 QString TranslationHandler::SuggestLanguage() const
 {
-    /*
-    Get language from system locale's name
-    QLocale::languageToString would return the languages full name and we
-    only want two-letter ISO 639 language code so we'll get it from
-    locale's name.
-    */
-    QString language = QLocale::system().name().left(2);
+    //Get language from system locale's name ie sv_SE or zh_CN
+    QString language = QLocale::system().name();
     //qDebug()<<"Your language is"<<language;
 
     //And see if we can find it from our list of language files
@@ -166,7 +179,8 @@ void TranslationHandler::AddTranslation(const char *name, const char *filename)
     TranslationInfo info;
     info.mName = name;
     info.mFilename = filename;
-    info.mCode = QString(filename).right(2);
+    int codeLength = QString(filename).length() - QString(filename).indexOf('_') - 1;
+    info.mCode = QString(filename).right(codeLength);
     mTranslations.append(info);
 }
 
@@ -175,6 +189,9 @@ int TranslationHandler::GetLanguageIndexByCode(const QString &code) const
     int index = -1;
     for (int i = 0; i < mTranslations.size(); i++) {
         if (mTranslations[i].mCode == code) {
+            index = i;
+            break;
+        } else if (mTranslations[i].mCode == code.left(2)) {
             index = i;
             break;
         }

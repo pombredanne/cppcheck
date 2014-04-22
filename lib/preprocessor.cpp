@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -123,10 +123,18 @@ static std::string unify(const std::string &s, char separator)
 }
 
 
+bool Preprocessor::cplusplus(const Settings *settings, const std::string &filename)
+{
+    const bool undef   = settings && settings->userUndefs.find("__cplusplus") != settings->userUndefs.end();
+    const bool cpplang = settings && settings->enforcedLang == Settings::CPP;
+    const bool cppfile = (!settings || settings->enforcedLang == Settings::None) && Path::isCPP(filename);
+    return (!undef && (cpplang || cppfile));
+}
+
 /**
  * Get cfgmap - a map of macro names and values
  */
-static std::map<std::string,std::string> getcfgmap(const std::string &cfg)
+static std::map<std::string,std::string> getcfgmap(const std::string &cfg, const Settings *settings, const std::string &filename)
 {
     std::map<std::string, std::string> cfgmap;
 
@@ -153,6 +161,9 @@ static std::map<std::string,std::string> getcfgmap(const std::string &cfg)
             pos = pos2 + 1;
         }
     }
+
+    if (cfgmap.find("__cplusplus") == cfgmap.end() && Preprocessor::cplusplus(settings,filename))
+        cfgmap["__cplusplus"] = "1";
 
     return cfgmap;
 }
@@ -387,7 +398,7 @@ std::string Preprocessor::preprocessCleanupDirectives(const std::string &process
                     if (needSpace) {
                         if (*i == '(' || *i == '!')
                             code << " ";
-                        else if (!std::isalpha(*i))
+                        else if (!std::isalpha((unsigned char)*i))
                             needSpace = false;
                     }
                     if (*i == '#')
@@ -518,7 +529,7 @@ std::string Preprocessor::removeComments(const std::string &str, const std::stri
         }
 
         // Remove comments..
-        if (str.compare(i, 2, "//", 0, 2) == 0) {
+        if (str.compare(i, 2, "//") == 0) {
             std::size_t commentStart = i + 2;
             i = str.find('\n', i);
             if (i == std::string::npos)
@@ -543,7 +554,7 @@ std::string Preprocessor::removeComments(const std::string &str, const std::stri
             code << "\n";
             previous = '\n';
             ++lineno;
-        } else if (str.compare(i, 2, "/*", 0, 2) == 0) {
+        } else if (str.compare(i, 2, "/*") == 0) {
             std::size_t commentStart = i + 2;
             unsigned char chPrev = 0;
             ++i;
@@ -572,10 +583,10 @@ std::string Preprocessor::removeComments(const std::string &str, const std::stri
                         suppressionIDs.push_back(word);
                 }
             }
-        } else if ((i==0 || std::isspace(str[i-1])) && str.compare(i,5,"__asm",0,5) == 0) {
-            while (i < str.size() && !std::isspace(str[i]))
+        } else if ((i == 0 || std::isspace((unsigned char)str[i-1])) && str.compare(i, 5, "__asm") == 0) {
+            while (i < str.size() && (std::isalpha((unsigned char)str[i]) || str[i] == '_'))
                 code << str[i++];
-            while (i < str.size() && std::isspace(str[i]))
+            while (i < str.size() && std::isspace((unsigned char)str[i]))
                 code << str[i++];
             if (str[i] == '{') {
                 // Ticket 4873: Extract comments from the __asm / __asm__'s content
@@ -599,7 +610,7 @@ std::string Preprocessor::removeComments(const std::string &str, const std::stri
 
             // Add any pending inline suppressions that have accumulated.
             if (!suppressionIDs.empty()) {
-                if (_settings != NULL) {
+                if (_settings != nullptr) {
                     // Add the suppressions.
                     for (std::size_t j = 0; j < suppressionIDs.size(); ++j) {
                         const std::string errmsg(_settings->nomsg.addSuppression(suppressionIDs[j], filename, lineno));
@@ -627,7 +638,7 @@ std::string Preprocessor::removeComments(const std::string &str, const std::stri
 
                 // Add any pending inline suppressions that have accumulated.
                 if (!suppressionIDs.empty()) {
-                    if (_settings != NULL) {
+                    if (_settings != nullptr) {
                         // Relative filename
                         std::string relativeFilename(filename);
                         if (_settings->_relativePaths) {
@@ -983,6 +994,12 @@ void Preprocessor::preprocess(std::istream &srcCodeStream, std::string &processe
                 "#endfile\n"
                 ;
         }
+
+        for (std::vector<std::string>::iterator it = _settings->library.defines.begin();
+             it != _settings->library.defines.end();
+             ++it) {
+            forcedIncludes += *it;
+        }
     }
 
     if (!forcedIncludes.empty()) {
@@ -1023,10 +1040,10 @@ void Preprocessor::preprocess(std::istream &srcCodeStream, std::string &processe
         processedFile = ostr.str();
     }
 
-    std::map<std::string, std::string> defs(getcfgmap(_settings ? _settings->userDefines : std::string("")));
+    std::map<std::string, std::string> defs(getcfgmap(_settings ? _settings->userDefines : std::string(""), _settings, filename));
 
     if (_settings && _settings->_maxConfigs == 1U) {
-        std::list<std::string> pragmaOnce;
+        std::set<std::string> pragmaOnce;
         std::list<std::string> includes;
         processedFile = handleIncludes(processedFile, filename, includePaths, defs, pragmaOnce, includes);
         resultConfigurations = getcfgs(processedFile, filename, defs);
@@ -1128,13 +1145,13 @@ static Token *simplifyVarMapExpandValue(Token *tok, const std::map<std::string, 
 
     const std::map<std::string, std::string>::const_iterator it = variables.find(tok->str());
     if (it != variables.end()) {
-        TokenList tokenList(NULL);
+        TokenList tokenList(nullptr);
         std::istringstream istr(it->second);
         if (tokenList.createTokens(istr)) {
             // expand token list
             for (Token *tok2 = tokenList.front(); tok2; tok2 = tok2->next()) {
                 if (tok2->isName()) {
-                    simplifyVarMapExpandValue(tok2, variables, seenVariables);
+                    tok2 = simplifyVarMapExpandValue(tok2, variables, seenVariables);
                 }
             }
 
@@ -1159,7 +1176,7 @@ static Token *simplifyVarMapExpandValue(Token *tok, const std::map<std::string, 
 static void simplifyVarMap(std::map<std::string, std::string> &variables)
 {
     for (std::map<std::string, std::string>::iterator i = variables.begin(); i != variables.end(); ++i) {
-        TokenList tokenList(NULL);
+        TokenList tokenList(nullptr);
         std::istringstream istr(i->second);
         if (tokenList.createTokens(istr)) {
             for (Token *tok = tokenList.front(); tok; tok = tok->next()) {
@@ -1187,13 +1204,14 @@ std::list<std::string> Preprocessor::getcfgs(const std::string &filedata, const 
     // constants defined through "#define" in the code..
     std::set<std::string> defines;
     std::map<std::string, std::string> alldefinesmap(defs);
+    std::stack<std::pair<std::string,bool> > includeStack;
+    includeStack.push(std::pair<std::string,bool>(filename,false));
 
     // How deep into included files are we currently parsing?
     // 0=>Source file, 1=>Included by source file, 2=>included by header that was included by source file, etc
     int filelevel = 0;
 
     bool includeguard = false;
-
     unsigned int linenr = 0;
     std::istringstream istr(filedata);
     std::string line;
@@ -1211,12 +1229,23 @@ std::list<std::string> Preprocessor::getcfgs(const std::string &filedata, const 
 
         if (line.compare(0, 6, "#file ") == 0) {
             includeguard = true;
+            std::string::size_type start=line.find("\"");
+            std::string::size_type end=line.find("\"",start+1);
+            std::string includeFile=line.substr(start+1,end-start-1);
+            bool fileExcluded = false;
             ++filelevel;
+            if (! _settings) {
+                fileExcluded = false;
+            } else {
+                fileExcluded = _settings->configurationExcluded(includeFile);
+            }
+            includeStack.push(std::pair<std::string,bool>(includeFile,fileExcluded));
             continue;
         }
 
         else if (line == "#endfile") {
             includeguard = false;
+            includeStack.pop();
             if (filelevel > 0)
                 --filelevel;
             continue;
@@ -1316,26 +1345,26 @@ std::list<std::string> Preprocessor::getcfgs(const std::string &filedata, const 
                 // Check if condition match pattern "%var% == %num%"
                 // %var%
                 std::string::size_type pos = 0;
-                if (std::isalpha(def[pos]) || def[pos] == '_') {
+                if (std::isalpha((unsigned char)def[pos]) || def[pos] == '_') {
                     ++pos;
-                    while (std::isalnum(def[pos]) || def[pos] == '_')
+                    while (std::isalnum((unsigned char)def[pos]) || def[pos] == '_')
                         ++pos;
                 }
 
                 // ==
-                if (def.compare(pos,2,"==",0,2)==0)
+                if (def.compare(pos,2,"==")==0)
                     pos += 2;
 
                 // %num%
                 if (pos<def.size() && std::isdigit(def[pos])) {
-                    if (def.compare(pos,2,"0x",0,2)==0) {
+                    if (def.compare(pos,2,"0x")==0) {
                         pos += 2;
                         if (pos >= def.size())
                             pos = 0;
-                        while (pos < def.size() && std::isxdigit(def[pos]))
+                        while (pos < def.size() && std::isxdigit((unsigned char)def[pos]))
                             ++pos;
                     } else {
-                        while (pos < def.size() && std::isdigit(def[pos]))
+                        while (pos < def.size() && std::isdigit((unsigned char)def[pos]))
                             ++pos;
                     }
 
@@ -1387,7 +1416,16 @@ std::list<std::string> Preprocessor::getcfgs(const std::string &filedata, const 
             }
 
             if (std::find(ret.begin(), ret.end(), def) == ret.end()) {
-                ret.push_back(def);
+                if (!includeStack.top().second) {
+                    ret.push_back(def);
+                } else {
+                    if (_errorLogger && _settings && _settings->debugwarnings) {
+                        std::list<ErrorLogger::ErrorMessage::FileLocation> locationList;
+                        const ErrorLogger::ErrorMessage errmsg(locationList, Severity::debug,
+                                                               "Configuration not considered: " + def +" for file:"+includeStack.top().first, "debug", false);
+                        _errorLogger->reportErr(errmsg);
+                    }
+                }
             }
         }
 
@@ -1520,11 +1558,11 @@ std::list<std::string> Preprocessor::getcfgs(const std::string &filedata, const 
 
             // identifier..
             if (std::isalpha(c) || c == '_') {
-                while (std::isalnum(s[pos]) || s[pos] == '_')
+                while (std::isalnum((unsigned char)s[pos]) || s[pos] == '_')
                     ++pos;
                 if (s[pos] == '=') {
                     ++pos;
-                    while (std::isdigit(s[pos]))
+                    while (std::isdigit((unsigned char)s[pos]))
                         ++pos;
                     if (s[pos] != ';') {
                         unhandled = true;
@@ -1624,7 +1662,7 @@ void Preprocessor::simplifyCondition(const std::map<std::string, std::string> &c
         if (it != cfg.end()) {
             if (!it->second.empty()) {
                 // Tokenize the value
-                Tokenizer tokenizer2(&settings,NULL);
+                Tokenizer tokenizer2(&settings, _errorLogger);
                 tokenizer2.tokenizeCondition(it->second);
 
                 // Copy the value tokens
@@ -1735,9 +1773,7 @@ std::string Preprocessor::getcode(const std::string &filedata, const std::string
     std::list<bool> matched_ifdef;
 
     // Create a map for the cfg for faster access to defines
-    std::map<std::string, std::string> cfgmap(getcfgmap(cfg));
-    if (((_settings && _settings->enforcedLang == Settings::CPP) || ((!_settings || _settings->enforcedLang == Settings::None) && Path::isCPP(filename))) && cfgmap.find("__cplusplus") == cfgmap.end())
-        cfgmap["__cplusplus"] = "1";
+    std::map<std::string, std::string> cfgmap(getcfgmap(cfg, _settings, filename));
 
     std::stack<std::string> filenames;
     filenames.push(filename);
@@ -1765,7 +1801,7 @@ std::string Preprocessor::getcode(const std::string &filedata, const std::string
                 break;
 
             if (line.find("=") != std::string::npos) {
-                Tokenizer tokenizer(_settings, NULL);
+                Tokenizer tokenizer(_settings, _errorLogger);
                 line.erase(0, sizeof("#pragma endasm"));
                 std::istringstream tempIstr(line);
                 tokenizer.tokenize(tempIstr, "");
@@ -2011,7 +2047,7 @@ static bool openHeader(std::string &filename, const std::list<std::string> &incl
 }
 
 
-std::string Preprocessor::handleIncludes(const std::string &code, const std::string &filePath, const std::list<std::string> &includePaths, std::map<std::string,std::string> &defs, std::list<std::string> &pragmaOnce, std::list<std::string> includes)
+std::string Preprocessor::handleIncludes(const std::string &code, const std::string &filePath, const std::list<std::string> &includePaths, std::map<std::string,std::string> &defs, std::set<std::string> &pragmaOnce, std::list<std::string> includes)
 {
     const std::string path(filePath.substr(0, 1 + filePath.find_last_of("\\/")));
 
@@ -2060,7 +2096,7 @@ std::string Preprocessor::handleIncludes(const std::string &code, const std::str
         std::stack<bool>::reference elseIsTrue = elseIsTrueStack.top();
 
         if (line == "#pragma once") {
-            pragmaOnce.push_back(filePath);
+            pragmaOnce.insert(filePath);
         } else if (line.compare(0,7,"#ifdef ") == 0) {
             if (indent == indentmatch) {
                 const std::string tag = getdef(line,true);
@@ -2202,7 +2238,7 @@ std::string Preprocessor::handleIncludes(const std::string &code, const std::str
                 includes.push_back(filename);
 
                 // Don't include header if it's already included and contains #pragma once
-                if (std::find(pragmaOnce.begin(), pragmaOnce.end(), filename) != pragmaOnce.end()) {
+                if (pragmaOnce.find(filename) != pragmaOnce.end()) {
                     ostr << std::endl;
                     continue;
                 }
@@ -2272,7 +2308,7 @@ void Preprocessor::handleIncludes(std::string &code, const std::string &filePath
         const bool fileOpened(openHeader(filename, includePaths, filepath, fin));
 
         if (fileOpened) {
-            filename = Path::simplifyPath(filename.c_str());
+            filename = Path::simplifyPath(filename);
             std::string tempFile = filename;
             std::transform(tempFile.begin(), tempFile.end(), tempFile.begin(), tolowerWrapper);
             if (handledFiles.find(tempFile) != handledFiles.end()) {
@@ -2342,7 +2378,9 @@ void Preprocessor::missingInclude(const std::string &filename, unsigned int line
                 locationList.push_back(loc);
             }
             ErrorLogger::ErrorMessage errmsg(locationList, Severity::information,
-                                             (headerType==SystemHeader) ? "Include file: <" + header + "> not found." : "Include file: \"" + header + "\" not found.",
+                                             (headerType==SystemHeader) ?
+                                             "Include file: <" + header + "> not found. Please note: Cppcheck does not need standard library headers to get proper results." :
+                                             "Include file: \"" + header + "\" not found.",
                                              msgtype, false);
             errmsg.file0 = file0;
             _errorLogger->reportInfo(errmsg);
@@ -2456,7 +2494,7 @@ static void getparams(const std::string &line,
         // spaces are only added if needed
         else if (line[pos] == ' ') {
             // Add space only if it is needed
-            if (par.size() && std::isalnum(par[par.length()-1])) {
+            if (par.size() && std::isalnum((unsigned char)par[par.length()-1])) {
                 par += ' ';
             }
         }
@@ -2682,7 +2720,7 @@ public:
                 tok = tok->next();
             if (tok) {
                 bool optcomma = false;
-                while (NULL != (tok = tok->next())) {
+                while (nullptr != (tok = tok->next())) {
                     std::string str = tok->str();
                     if (str == "##")
                         continue;
@@ -2858,9 +2896,9 @@ bool Preprocessor::validateCfg(const std::string &code, const std::string &cfg)
 
             // is macro used in code?
             else if (code.compare(pos1,macro.size(),macro) == 0) {
-                if (pos1 > 0 && (std::isalnum(code[pos1-1U]) || code[pos1-1U] == '_'))
+                if (pos1 > 0 && (std::isalnum((unsigned char)code[pos1-1U]) || code[pos1-1U] == '_'))
                     continue;
-                if (pos2 < code.size() && (std::isalnum(code[pos2]) || code[pos2] == '_'))
+                if (pos2 < code.size() && (std::isalnum((unsigned char)code[pos2]) || code[pos2] == '_'))
                     continue;
                 // macro is used in code, return false
                 if (_settings->isEnabled("information"))
@@ -2895,7 +2933,7 @@ std::string Preprocessor::expandMacros(const std::string &code, std::string file
 
     {
         // fill up "macros" with user defined macros
-        const std::map<std::string,std::string> cfgmap(getcfgmap(cfg));
+        const std::map<std::string,std::string> cfgmap(getcfgmap(cfg,nullptr,""));
         std::map<std::string, std::string>::const_iterator it;
         for (it = cfgmap.begin(); it != cfgmap.end(); ++it) {
             std::string s = it->first;
@@ -3023,17 +3061,17 @@ std::string Preprocessor::expandMacros(const std::string &code, std::string file
                     continue;
                 }
 
-                if (!std::isalpha(line[pos]) && line[pos] != '_')
+                if (!std::isalpha((unsigned char)line[pos]) && line[pos] != '_')
                     ++pos;
 
                 // found an identifier..
                 // the "while" is used in case the expanded macro will immediately call another macro
-                while (pos < line.length() && (std::isalpha(line[pos]) || line[pos] == '_')) {
+                while (pos < line.length() && (std::isalpha((unsigned char)line[pos]) || line[pos] == '_')) {
                     // pos1 = start position of macro
                     const std::string::size_type pos1 = pos++;
 
                     // find the end of the identifier
-                    while (pos < line.size() && (std::isalnum(line[pos]) || line[pos] == '_'))
+                    while (pos < line.size() && (std::isalnum((unsigned char)line[pos]) || line[pos] == '_'))
                         ++pos;
 
                     // get identifier
@@ -3126,7 +3164,7 @@ std::string Preprocessor::expandMacros(const std::string &code, std::string file
                     line.erase(pos1, pos2 - pos1);
 
                     // Don't glue this macro into variable or number after it
-                    if (!line.empty() && (std::isalnum(line[pos1]) || line[pos1] == '_'))
+                    if (!line.empty() && (std::isalnum((unsigned char)line[pos1]) || line[pos1] == '_'))
                         macrocode.append(1,' ');
 
                     // insert macrochar before each symbol/nr/operator
@@ -3142,12 +3180,51 @@ std::string Preprocessor::expandMacros(const std::string &code, std::string file
                             chr = !chr;
                         else if (str || chr)
                             continue;
-                        else if (std::isalnum(macrocode[i]) || macrocode[i] == '_') {
+                        else if (macrocode[i] == '.') { // 5. / .5
+                            if ((i > 0U && std::isdigit((unsigned char)macrocode[i-1])) ||
+                                (i+1 < macrocode.size() && std::isdigit((unsigned char)macrocode[i+1]))) {
+                                if (i > 0U && !std::isdigit((unsigned char)macrocode[i-1])) {
+                                    macrocode.insert(i, 1U, macroChar);
+                                    i++;
+                                }
+                                i++;
+                                if (i<macrocode.size() && std::isdigit((unsigned char)macrocode[i]))
+                                    i++;
+                                if (i+1U < macrocode.size() &&
+                                    (macrocode[i] == 'e' || macrocode[i] == 'E') &&
+                                    (macrocode[i+1] == '+' || macrocode[i+1] == '-')) {
+                                    i+=2;
+                                }
+                            }
+                        } else if (std::isalnum((unsigned char)macrocode[i]) || macrocode[i] == '_') {
                             if ((i > 0U)                        &&
-                                (!std::isalnum(macrocode[i-1])) &&
+                                (!std::isalnum((unsigned char)macrocode[i-1])) &&
                                 (macrocode[i-1] != '_')         &&
                                 (macrocode[i-1] != macroChar)) {
                                 macrocode.insert(i, 1U, macroChar);
+                            }
+
+                            // 1e-7 / 1e+7
+                            if (i+3U < macrocode.size()     &&
+                                (std::isdigit((unsigned char)macrocode[i]) || macrocode[i]=='.')  &&
+                                (macrocode[i+1] == 'e' || macrocode[i+1] == 'E')   &&
+                                (macrocode[i+2] == '-' || macrocode[i+2] == '+')   &&
+                                std::isdigit((unsigned char)macrocode[i+3])) {
+                                i += 3U;
+                            }
+
+                            // 1.f / 1.e7
+                            if (i+2U < macrocode.size()    &&
+                                std::isdigit((unsigned char)macrocode[i]) &&
+                                macrocode[i+1] == '.'      &&
+                                std::isalpha((unsigned char)macrocode[i+2])) {
+                                i += 2U;
+                                if (i+2U < macrocode.size() &&
+                                    (macrocode[i+0] == 'e' || macrocode[i+0] == 'E')   &&
+                                    (macrocode[i+1] == '-' || macrocode[i+1] == '+')   &&
+                                    std::isdigit((unsigned char)macrocode[i+2])) {
+                                    i += 2U;
+                                }
                             }
                         }
                     }

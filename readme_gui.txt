@@ -17,7 +17,7 @@ Windows:
 - The easy ways are:
 -- download Qt SDK from http://qt-project.org/downloads and use
    QtCreator to build the GUI.
--- Download precompiled libaries for your platform and use your preferred
+-- Download precompiled libraries for your platform and use your preferred
    IDE/environment to build GUI. Be careful to download the correct version of
    library for your compiler!
 - The harder way is to download Qt sources and build Qt. Compiling Qt alone may
@@ -37,7 +37,7 @@ prompt/console, go to gui directory and run command:
 - qmake (in Linux and in Windows if build with MinGW/gcc or nmake)
 - qmake -tp vc (to generate Visual Studio project file)
 - qmake -tp vc LINKCORE=yes (to generate Visual Studio project file, linking
-                             dynamically to core. Recommended for VS10)
+                             dynamically to core. Recommended.)
 
 On Windows, you have to either call qtvars.bat in Qt folder or use the Qt command
 line prompt shortcut added in the start menu by Qt installation.

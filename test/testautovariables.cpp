@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -53,7 +53,7 @@ private:
 
         if (runSimpleChecks) {
             const std::string str1(tokenizer.tokens()->stringifyList(0,true));
-            tokenizer.simplifyTokenList();
+            tokenizer.simplifyTokenList2();
             const std::string str2(tokenizer.tokens()->stringifyList(0,true));
             if (str1 != str2)
                 warn(("Unsimplified code in test case. It looks like this test "
@@ -80,6 +80,7 @@ private:
         TEST_CASE(testautovar10); // ticket #2930 - void f(char *p) { p = '\0'; }
         TEST_CASE(testautovar11); // ticket #4641 - fp, assign local struct member address to function parameter
         TEST_CASE(testautovar12); // ticket #5024 - crash
+        TEST_CASE(testautovar13); // ticket #5537 - crash
         TEST_CASE(testautovar_array1);
         TEST_CASE(testautovar_array2);
         TEST_CASE(testautovar_return1);
@@ -107,6 +108,10 @@ private:
         TEST_CASE(testglobalnamespace);
 
         TEST_CASE(returnParameterAddress);
+
+        TEST_CASE(testconstructor); // ticket #5478 - crash
+
+        TEST_CASE(variableIsUsedInScope); // ticket #5599 crash in variableIsUsedInScope()
     }
 
 
@@ -348,8 +353,23 @@ private:
         ASSERT_EQUALS("[test.cpp:3]: (error) Address of local auto-variable assigned to a function parameter.\n", errout.str());
     }
 
-    void testautovar12() { // Ticket #5024 - Crash on invalid input
+    void testautovar12() { // Ticket #5024, #5050 - Crash on invalid input
         check("void f(int* a) { a = }");
+        check("struct custom_type { custom_type(int) {} };\n"
+              "void func(int) {}\n"
+              "int var;\n"
+              "void init() { func(var); }\n"
+              "UNKNOWN_MACRO_EXPANDING_TO_SIGNATURE { custom_type a(var); }");
+    }
+
+    void testautovar13() { // Ticket #5537
+        check("class FileManager {\n"
+              "  FileManager() : UniqueRealDirs(*new UniqueDirContainer())\n"
+              "  {}\n"
+              "  ~FileManager() {\n"
+              "    delete &UniqueRealDirs;\n"
+              "   }\n"
+              "};\n");
     }
 
     void testautovar_array1() {
@@ -465,7 +485,22 @@ private:
               "        free(psz_title);\n"
               "    }\n"
               "}");
-        ASSERT_EQUALS(std::string(""), errout.str());
+        ASSERT_EQUALS("", errout.str());
+
+        // #2298 new check: passing stack-address to free()
+        check("int main() {\n"
+              "   int *p = malloc(4);\n"
+              "   free(&p);\n"
+              "   return 0;\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:3]: (error) Deallocation of an auto-variable results in undefined behaviour.\n", errout.str());
+        check("int main() {\n"
+              "   int i;\n"
+              "   free(&i);\n"
+              "   return 0;\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:3]: (error) Deallocation of an auto-variable results in undefined behaviour.\n", errout.str());
+
     }
 
     void testassign1() { // Ticket #1819
@@ -807,6 +842,25 @@ private:
               "}");
 
         ASSERT_EQUALS("", errout.str());
+    }
+
+    void testconstructor() { // Ticket #5478 - crash while checking a constructor
+        check("class const_tree_iterator {\n"
+              "  const_tree_iterator(bool (*_incream)(node_type*&)) {}\n"
+              "  const_tree_iterator& parent() {\n"
+              "    return const_tree_iterator(foo);\n"
+              "  }\n"
+              "};");
+    }
+
+    void variableIsUsedInScope() {
+        check("void removed_cb (GList *uids) {\n"
+              "for (; uids; uids = uids->next) {\n"
+              "}\n"
+              "}\n"
+              "void opened_cb () {\n"
+              "	g_signal_connect (G_CALLBACK (removed_cb));\n"
+              "}");
     }
 
 };

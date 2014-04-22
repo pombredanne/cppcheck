@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -95,6 +95,12 @@ private:
         ASSERT_EQUALS("", errout.str());
 
         check("sizeof(void * const)");
+        ASSERT_EQUALS("", errout.str());
+
+        check("sizeof(int*[2])");
+        ASSERT_EQUALS("", errout.str());
+
+        check("sizeof(Fred**)");
         ASSERT_EQUALS("", errout.str());
 
         check("sizeof(foo++)");
@@ -519,6 +525,12 @@ private:
               "}");
         ASSERT_EQUALS("[test.cpp:4]: (portability) 'p1' is of type 'void *'. When using void pointers in calculations, the behaviour is undefined.\n"
                       "[test.cpp:5]: (portability) 'p2' is of type 'void *'. When using void pointers in calculations, the behaviour is undefined.\n", errout.str());
+
+        check("void f() {\n"
+              "  void** p1 = malloc(10);\n"
+              "  p1--;\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
 
         check("void f() {\n"
               "  void** p1;\n"

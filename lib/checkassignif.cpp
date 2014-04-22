@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -56,7 +56,7 @@ void CheckAssignIf::assignIf()
 
                 // Casting address
                 if (Token::Match(endToken->tokAt(-4), "* ) & %any% ;"))
-                    endToken = NULL;
+                    endToken = nullptr;
 
                 if (endToken && Token::Match(endToken->tokAt(-2), "[&|] %num% ;")) {
                     bitop = endToken->strAt(-2).at(0);
@@ -108,11 +108,11 @@ bool CheckAssignIf::assignIfParseScope(const Token * const assignTok,
                 else if (ftok->str() == ",")
                     argumentNumber++;
             }
-            ftok = ftok ? ftok->previous() : NULL;
+            ftok = ftok ? ftok->previous() : nullptr;
             if (!(ftok && ftok->function()))
                 return true;
             const Variable *par = ftok->function()->getArgumentVar(argumentNumber);
-            if (par == NULL || par->isReference() || par->isPointer())
+            if (par == nullptr || par->isReference() || par->isPointer())
                 return true;
         }
         if (tok2->str() == "}")
@@ -186,33 +186,50 @@ void CheckAssignIf::mismatchingBitAndError(const Token *tok1, const MathLib::big
 }
 
 
+static void getnumchildren(const Token *tok, std::list<MathLib::bigint> &numchildren)
+{
+    if (tok->astOperand1() && tok->astOperand1()->isNumber())
+        numchildren.push_back(MathLib::toLongNumber(tok->astOperand1()->str()));
+    else if (tok->astOperand1() && tok->str() == tok->astOperand1()->str())
+        getnumchildren(tok->astOperand1(), numchildren);
+    if (tok->astOperand2() && tok->astOperand2()->isNumber())
+        numchildren.push_back(MathLib::toLongNumber(tok->astOperand2()->str()));
+    else if (tok->astOperand2() && tok->str() == tok->astOperand2()->str())
+        getnumchildren(tok->astOperand2(), numchildren);
+}
 
 void CheckAssignIf::comparison()
 {
     if (!_settings->isEnabled("style"))
         return;
 
+    // Experimental code based on AST
     for (const Token *tok = _tokenizer->tokens(); tok; tok = tok->next()) {
-        if (Token::Match(tok, "&|%or% %num% )| ==|!= %num% &&|%oror%|)")) {
-            const MathLib::bigint num1 = MathLib::toLongNumber(tok->strAt(1));
-            if (num1 < 0)
+        if (Token::Match(tok, "==|!=")) {
+            const Token *expr1 = tok->astOperand1();
+            const Token *expr2 = tok->astOperand2();
+            if (!expr1 || !expr2)
                 continue;
-
-            const Token *compareToken = tok->tokAt(2);
-            if (compareToken->str() == ")") {
-                if (!Token::Match(compareToken->link()->previous(), "(|%oror%|&&"))
-                    continue;
-                compareToken = compareToken->next();
-            }
-
-            const MathLib::bigint num2 = MathLib::toLongNumber(compareToken->strAt(1));
+            if (expr1->isNumber())
+                std::swap(expr1,expr2);
+            if (!expr2->isNumber())
+                continue;
+            const MathLib::bigint num2 = MathLib::toLongNumber(expr2->str());
             if (num2 < 0)
                 continue;
-
-            if ((tok->str() == "&" && (num1 & num2) != num2) ||
-                (tok->str() == "|" && (num1 | num2) != num2)) {
-                const std::string& op(compareToken->str());
-                comparisonError(tok, tok->str(), num1, op, num2, op=="==" ? false : true);
+            if (!Token::Match(expr1,"[&|]"))
+                continue;
+            std::list<MathLib::bigint> numbers;
+            getnumchildren(expr1, numbers);
+            for (std::list<MathLib::bigint>::const_iterator num = numbers.begin(); num != numbers.end(); ++num) {
+                const MathLib::bigint num1 = *num;
+                if (num1 < 0)
+                    continue;
+                if ((expr1->str() == "&" && (num1 & num2) != num2) ||
+                    (expr1->str() == "|" && (num1 | num2) != num2)) {
+                    const std::string& op(tok->str());
+                    comparisonError(expr1, expr1->str(), num1, op, num2, op=="==" ? false : true);
+                }
             }
         }
     }
@@ -232,9 +249,46 @@ void CheckAssignIf::comparisonError(const Token *tok, const std::string &bitop, 
     reportError(tok, Severity::style, "comparisonError", errmsg);
 }
 
+extern bool isSameExpression(const Token *tok1, const Token *tok2, const std::set<std::string> &constFunctions);
 
+static bool isOverlappingCond(const Token * const cond1, const Token * const cond2, const std::set<std::string> &constFunctions)
+{
+    if (!cond1 || !cond2)
+        return false;
 
+    // same expressions
+    if (isSameExpression(cond1,cond2,constFunctions))
+        return true;
 
+    // bitwise overlap for example 'x&7' and 'x==1'
+    if (cond1->str() == "&" && cond1->astOperand1() && cond2->astOperand2()) {
+        const Token *expr1 = cond1->astOperand1();
+        const Token *num1  = cond1->astOperand2();
+        if (!num1) // unary operator&
+            return false;
+        if (!num1->isNumber())
+            std::swap(expr1,num1);
+        if (!num1->isNumber() || MathLib::isNegative(num1->str()))
+            return false;
+
+        if (!Token::Match(cond2, "&|==") || !cond2->astOperand1() || !cond2->astOperand2())
+            return false;
+        const Token *expr2 = cond2->astOperand1();
+        const Token *num2  = cond2->astOperand2();
+        if (!num2->isNumber())
+            std::swap(expr2,num2);
+        if (!num2->isNumber() || MathLib::isNegative(num2->str()))
+            return false;
+
+        if (!isSameExpression(expr1,expr2,constFunctions))
+            return false;
+
+        const MathLib::bigint value1 = MathLib::toLongNumber(num1->str());
+        const MathLib::bigint value2 = MathLib::toLongNumber(num2->str());
+        return ((value1 & value2) == value2);
+    }
+    return false;
+}
 
 
 void CheckAssignIf::multiCondition()
@@ -245,37 +299,23 @@ void CheckAssignIf::multiCondition()
     const SymbolDatabase* const symbolDatabase = _tokenizer->getSymbolDatabase();
 
     for (std::list<Scope>::const_iterator i = symbolDatabase->scopeList.begin(); i != symbolDatabase->scopeList.end(); ++i) {
-        if (i->type == Scope::eIf && Token::Match(i->classDef, "if ( %var% & %num% ) {")) {
-            const Token* const tok = i->classDef;
-            const unsigned int varid(tok->tokAt(2)->varId());
-            if (varid == 0)
-                continue;
+        if (i->type != Scope::eIf || !Token::simpleMatch(i->classDef, "if ("))
+            continue;
 
-            const MathLib::bigint num1 = MathLib::toLongNumber(tok->strAt(4));
-            if (num1 < 0)
-                continue;
+        const Token * const cond1 = i->classDef->next()->astOperand2();
 
-            const Token *tok2 = tok->linkAt(6);
-            while (Token::simpleMatch(tok2, "} else { if (")) {
-                // Goto '('
-                const Token * const opar = tok2->tokAt(4);
+        const Token * tok2 = i->classDef->next();
+        while (tok2) {
+            tok2 = tok2->link();
+            if (!Token::simpleMatch(tok2, ") {"))
+                break;
+            tok2 = tok2->linkAt(1);
+            if (!Token::simpleMatch(tok2, "} else { if ("))
+                break;
+            tok2 = tok2->tokAt(4);
 
-                // tok2: skip if-block
-                tok2 = opar->link();
-                if (Token::simpleMatch(tok2, ") {"))
-                    tok2 = tok2->next()->link();
-
-                // check condition..
-                if (Token::Match(opar, "( %varid% ==|& %num% &&|%oror%|)", varid)) {
-                    const MathLib::bigint num2 = MathLib::toLongNumber(opar->strAt(3));
-                    if (num2 < 0)
-                        continue;
-
-                    if ((num1 & num2) == num2) {
-                        multiConditionError(opar, tok->linenr());
-                    }
-                }
-            }
+            if (isOverlappingCond(cond1, tok2->astOperand2(), _settings->library.functionpure))
+                multiConditionError(tok2, cond1->linenr());
         }
     }
 }

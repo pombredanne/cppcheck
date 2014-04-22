@@ -24,9 +24,11 @@ def wget(filepath):
     if filepath.find('/') >= 0:
         filename = filename[filename.rfind('/') + 1:]
     for d in DEBIAN:
-        subprocess.call(['nice', 'wget', d + filepath])
+        subprocess.call(
+            ['nice', 'wget', '--tries=10', '--timeout=300', '-O', filename, d + filepath])
         if os.path.isfile(filename):
             return True
+        print('Sleep for 10 seconds..')
         time.sleep(10)
     return False
 
@@ -109,15 +111,20 @@ def removeLargeFiles(path):
     for g in glob.glob(path + '*'):
         if g == '.' or g == '..':
             continue
+        if os.path.islink(g):
+            continue
         if os.path.isdir(g):
             removeLargeFiles(g + '/')
-        elif os.path.isfile(g) and g != 'results.txt':
+        elif os.path.isfile(g) and g[-4:] != '.txt':
             statinfo = os.stat(g)
-            if statinfo.st_size > 100000:
+            if path.find('/clang/INPUTS/') > 0 or statinfo.st_size > 100000:
                 os.remove(g)
 
 
 def scanarchive(filepath):
+    # remove all files/folders except results.txt
+    removeAllExceptResults()
+
     results = open('results.txt', 'at')
     results.write(DEBIAN[0] + filepath + '\n')
     results.close()
@@ -137,36 +144,34 @@ def scanarchive(filepath):
     elif filename[-4:] == '.bz2':
         subprocess.call(['tar', 'xjvf', filename])
 
-    if filename[:5] == 'flite':
+    if filename[:5] == 'flite' or filename[:5] == 'boost' or filename[:6] == 'iceowl' or filename[:7] == 'insight':
         results = open('results.txt', 'at')
-        results.write('fixme: this package is skipped\n')
+        results.write('fixme: skipped package to avoid hang\n')
         results.close()
-        return
-
-    dirname = None
-    for s in glob.glob(filename[:2] + '*'):
-        if os.path.isdir(s):
-            dirname = s
-    if dirname is None:
         return
 
     removeLargeFiles('')
 
-    print(filename + ': cppcheck ' + dirname)
+    print('cppcheck ' + filename)
 
     p = subprocess.Popen(
         ['nice',
          '../cppcheck-O2',
          '-D__GCC__',
          '--enable=style',
+         '--error-exitcode=0',
          '--suppressions-list=../suppressions.txt',
-         dirname],
+         '.'],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE)
     comm = p.communicate()
 
     results = open('results.txt', 'at')
-    results.write(comm[1] + '\n')
+    if p.returncode == 0:
+        results.write(comm[1])
+    elif comm[0].find('cppcheck: error: could not find or open any of the paths given.') < 0:
+        results.write('Exit code is not zero! Crash?\n')
+    results.write('\n')
     results.close()
 
 FOLDER = None
@@ -204,17 +209,18 @@ os.chdir(workdir + FOLDER)
 
 try:
     results = open('results.txt', 'wt')
-    results.write('DATE ' + str(datetime.date.today()) + '\n')
+    results.write('STARTDATE ' + str(datetime.date.today()) + '\n')
     if REV:
         results.write('GIT-REVISION ' + REV + '\n')
     results.write('\n')
     results.close()
 
     for archive in archives:
-        # remove all files/folders except results.txt
-        removeAllExceptResults()
-
         scanarchive(archive)
+
+    results = open('results.txt', 'at')
+    results.write('DATE ' + str(datetime.date.today()) + '\n')
+    results.close()
 
 except EOFError:
     pass

@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,6 +37,7 @@ private:
         TEST_CASE(mismatchingBitAnd);  // overlapping bitmasks
         TEST_CASE(compare);            // mismatching LHS/RHS in comparison
         TEST_CASE(multicompare);       // mismatching comparisons
+        TEST_CASE(duplicateIf);        // duplicate conditions in if and else-if
     }
 
     void check(const char code[]) {
@@ -51,7 +52,7 @@ private:
         std::istringstream istr(code);
         tokenizer.tokenize(istr, "test.cpp");
         const std::string str1(tokenizer.tokens()->stringifyList(0,true));
-        tokenizer.simplifyTokenList();
+        tokenizer.simplifyTokenList2();
         const std::string str2(tokenizer.tokens()->stringifyList(0,true));
 
         // Ensure that the test case is not bad.
@@ -217,6 +218,13 @@ private:
               "    if (y==1) {}\n"
               "}");
         ASSERT_EQUALS("", errout.str());
+
+        // no crash on unary operator& (#5643)
+        check("SdrObject* ApplyGraphicToObject() {\n"
+              "    if (&rHitObject) {}\n"
+              "    else if (rHitObject.IsClosedObj() && !&rHitObject) { }\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
     }
 
     void mismatchingBitAnd() {
@@ -245,21 +253,9 @@ private:
     void compare() {
         check("void foo(int x)\n"
               "{\n"
-              "    if (x & 4 == 3);\n"
-              "}");
-        ASSERT_EQUALS("[test.cpp:3]: (style) Expression '(X & 0x4) == 0x3' is always false.\n", errout.str());
-
-        check("void foo(int x)\n"
-              "{\n"
               "    if ((x & 4) == 3);\n"
               "}");
         ASSERT_EQUALS("[test.cpp:3]: (style) Expression '(X & 0x4) == 0x3' is always false.\n", errout.str());
-
-        check("void foo(int x)\n"
-              "{\n"
-              "    if (x & 4 != 3);\n"
-              "}");
-        ASSERT_EQUALS("[test.cpp:3]: (style) Expression '(X & 0x4) != 0x3' is always true.\n", errout.str());
 
         check("void foo(int x)\n"
               "{\n"
@@ -273,24 +269,9 @@ private:
               "}");
         ASSERT_EQUALS("[test.cpp:3]: (style) Expression '(X | 0x4) != 0x3' is always true.\n", errout.str());
 
-        // array
-        check("void foo(int *x)\n"
-              "{\n"
-              "    if (x[0] & 4 == 3);\n"
-              "}");
-        ASSERT_EQUALS("[test.cpp:3]: (style) Expression '(X & 0x4) == 0x3' is always false.\n", errout.str());
-
-        // struct member
-        check("void foo(struct X *x)\n"
-              "{\n"
-              "    if (x->y & 4 == 3);\n"
-              "}");
-        ASSERT_EQUALS("[test.cpp:3]: (style) Expression '(X & 0x4) == 0x3' is always false.\n", errout.str());
-
-        // expression
         check("void foo(int x)\n"
               "{\n"
-              "    if ((x+2) & 4 == 3);\n"
+              "    if ((x & y & 4 & z ) == 3);\n"
               "}");
         ASSERT_EQUALS("[test.cpp:3]: (style) Expression '(X & 0x4) == 0x3' is always false.\n", errout.str());
     }
@@ -309,6 +290,82 @@ private:
               "    else { if (x & 1); }\n"
               "}");
         ASSERT_EQUALS("[test.cpp:4]: (style) Expression is always false because 'else if' condition matches previous condition at line 3.\n", errout.str());
+    }
+
+    void duplicateIf() {
+        check("void f(int a, int &b) {\n"
+              "    if (a) { b = 1; }\n"
+              "    else { if (a) { b = 2; } }\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:3]: (style) Expression is always false because 'else if' condition matches previous condition at line 2.\n", errout.str());
+
+        check("void f(int a, int &b) {\n"
+              "    if (a) { b = 1; }\n"
+              "    else { if (a) { b = 2; } }\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:3]: (style) Expression is always false because 'else if' condition matches previous condition at line 2.\n", errout.str());
+
+        check("void f(int a, int &b) {\n"
+              "    if (a == 1) { b = 1; }\n"
+              "    else { if (a == 2) { b = 2; }\n"
+              "    else { if (a == 1) { b = 3; } } }\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:4]: (style) Expression is always false because 'else if' condition matches previous condition at line 2.\n", errout.str());
+
+        check("void f(int a, int &b) {\n"
+              "    if (a == 1) { b = 1; }\n"
+              "    else { if (a == 2) { b = 2; }\n"
+              "    else { if (a == 2) { b = 3; } } }\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:4]: (style) Expression is always false because 'else if' condition matches previous condition at line 3.\n", errout.str());
+
+        check("void f(int a, int &b) {\n"
+              "    if (a++) { b = 1; }\n"
+              "    else { if (a++) { b = 2; }\n"
+              "    else { if (a++) { b = 3; } } }\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
+
+        check("void f(int a, int &b) {\n"
+              "    if (!strtok(NULL," ")) { b = 1; }\n"
+              "    else { if (!strtok(NULL," ")) { b = 2; } }\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
+
+        check("void f(int a, int &b) {\n"
+              "   x = x / 2;\n"
+              "   if (x < 100) { b = 1; }\n"
+              "   else { x = x / 2; if (x < 100) { b = 2; } }\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
+
+        check("void f(int i) {\n"
+              "   if(i == 0x02e2000000 || i == 0xa0c6000000)\n"
+              "       foo(i);\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
+
+        // ticket 3689 ( avoid false positive )
+        check("int fitInt(long long int nValue){\n"
+              "    if( nValue < 0x7fffffffLL )\n"
+              "    {\n"
+              "        return 32;\n"
+              "    }\n"
+              "    if( nValue < 0x7fffffffffffLL )\n"
+              "    {\n"
+              "        return 48;\n"
+              "    }\n"
+              "    else {\n"
+              "        if( nValue < 0x7fffffffffffffffLL )\n"
+              "        {\n"
+              "            return 64;\n"
+              "        } else\n"
+              "        {\n"
+              "            return -1;\n"
+              "        }\n"
+              "    }\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
     }
 };
 

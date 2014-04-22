@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,14 +21,18 @@
 #define tokenH
 //---------------------------------------------------------------------------
 
+#include <list>
 #include <string>
 #include <vector>
 #include <ostream>
 #include "config.h"
+#include "valueflow.h"
+#include "mathlib.h"
 
 class Scope;
 class Function;
 class Variable;
+class Settings;
 
 /// @addtogroup Core
 /// @{
@@ -65,7 +69,13 @@ public:
     explicit Token(Token **tokensBack);
     ~Token();
 
-    void str(const std::string &s);
+    template<typename T>
+    void str(T&& s) {
+        _str = s;
+        _varId = 0;
+
+        update_property_info();
+    }
 
     /**
      * Concatenate two (quoted) strings. Automatically cuts of the last/first character.
@@ -147,15 +157,15 @@ public:
      * - "!!else" No tokens or any token that is not "else".
      * - "someRandomText" If token contains "someRandomText".
      *
-     * multi-compare patterns such as "int|void|char" can contain %or%, %oror% and %op%
-     * but it is not recommended to put such an %cmd% as the first pattern.
+     * multi-compare patterns such as "int|void|char" can contain %%or%, %%oror% and %%op%
+     * but it is not recommended to put such an %%cmd% as the first pattern.
      *
-     * It's possible to use multi-compare patterns with all the other %cmds%,
-     * except for %varid%, and normal names, but the %cmds% should be put as
+     * It's possible to use multi-compare patterns with all the other %%cmds%,
+     * except for %%varid%, and normal names, but the %%cmds% should be put as
      * the first patterns in the list, then the normal names.
      * For example: "%var%|%num%|)" means yes to a variable, a number or ')'.
      *
-     * @todo Make it possible to use the %cmds% and the normal names in the
+     * @todo Make it possible to use the %%cmds% and the normal names in the
      * multicompare list without an order.
      *
      * The patterns can be also combined to compare to multiple tokens at once
@@ -167,7 +177,7 @@ public:
      * @param tok List of tokens to be compared to the pattern
      * @param pattern The pattern against which the tokens are compared,
      * e.g. "const" or ") const|volatile| {".
-     * @param varid if %varid% is given in the pattern the Token::varId
+     * @param varid if %%varid% is given in the pattern the Token::varId
      * will be matched against this argument
      * @return true if given token matches with given pattern
      *         false if given token does not match with given pattern
@@ -177,7 +187,7 @@ public:
     /**
      * Return length of C-string.
      *
-     * Should be called for %str% tokens only.
+     * Should be called for %%str%% tokens only.
      *
      * @param tok token with C-string
      **/
@@ -186,7 +196,7 @@ public:
     /**
      * Return char of C-string at index (possible escaped "\\n")
      *
-     * Should be called for %str% tokens only.
+     * Should be called for %%str%% tokens only.
      *
      * @param tok token with C-string
      * @param index position of character
@@ -278,11 +288,35 @@ public:
     void isAttributeConstructor(bool ac) {
         _isAttributeConstructor = ac;
     }
+    bool isAttributeDestructor() const {
+        return _isAttributeDestructor;
+    }
+    void isAttributeDestructor(bool value) {
+        _isAttributeDestructor = value;
+    }
     bool isAttributeUnused() const {
         return _isAttributeUnused;
     }
     void isAttributeUnused(bool unused) {
         _isAttributeUnused = unused;
+    }
+    bool isAttributePure() const {
+        return _isAttributePure;
+    }
+    void isAttributePure(bool value) {
+        _isAttributePure = value;
+    }
+    bool isAttributeConst() const {
+        return _isAttributeConst;
+    }
+    void isAttributeConst(bool value) {
+        _isAttributeConst = value;
+    }
+    bool isAttributeNothrow() const {
+        return _isAttributeNothrow;
+    }
+    void isAttributeNothrow(bool value) {
+        _isAttributeNothrow = value;
     }
 
     static const Token *findsimplematch(const Token *tok, const char pattern[]);
@@ -379,7 +413,7 @@ public:
      * @param title Title for the printout or use default parameter or 0
      * for no title.
      */
-    void printOut(const char *title = 0) const;
+    void printOut(const char *title = nullptr) const;
 
     /**
      * For debugging purposes, prints token and all tokens
@@ -571,11 +605,39 @@ public:
     /**
      * Sets the original name.
      */
-    void originalName(const std::string & name) {
+    template<typename T>
+    void originalName(T&& name) {
         _originalName = name;
     }
 
+    /** Values of token */
+    std::list<ValueFlow::Value> values;
+
+    const ValueFlow::Value * getValue(const MathLib::bigint val) const {
+        std::list<ValueFlow::Value>::const_iterator it;
+        for (it = values.begin(); it != values.end(); ++it) {
+            if (it->intvalue == val)
+                return &(*it);
+        }
+        return NULL;
+    }
+
+    const ValueFlow::Value * getMaxValue(bool condition) const {
+        const ValueFlow::Value *ret = nullptr;
+        std::list<ValueFlow::Value>::const_iterator it;
+        for (it = values.begin(); it != values.end(); ++it) {
+            if ((!ret || it->intvalue > ret->intvalue) &&
+                ((it->condition != NULL) == condition))
+                ret = &(*it);
+        }
+        return ret;
+    }
+
+    const ValueFlow::Value * getValueLE(const MathLib::bigint val, const Settings *settings) const;
+    const ValueFlow::Value * getValueGE(const MathLib::bigint val, const Settings *settings) const;
+
 private:
+
     void next(Token *nextToken) {
         _next = nextToken;
     }
@@ -634,8 +696,12 @@ private:
     bool _isLong;
     bool _isStandardType;
     bool _isExpandedMacro;
-    bool _isAttributeConstructor;  // __attribute__((constructor))
+    bool _isAttributeConstructor;  // __attribute__((constructor)) __attribute__((constructor(priority)))
+    bool _isAttributeDestructor;   // __attribute__((destructor))  __attribute__((destructor(priority)))
     bool _isAttributeUnused;       // __attribute__((unused))
+    bool _isAttributePure;         // __attribute__((pure))
+    bool _isAttributeConst;        // __attribute__((const))
+    bool _isAttributeNothrow;      // __attribute__((nothrow))
 
     /** Updates internal property cache like _isName or _isBoolean.
         Called after any _str() modification. */
@@ -652,17 +718,20 @@ private:
     // original name like size_t
     std::string _originalName;
 
+    static bool _isCPP;
+
 public:
     void astOperand1(Token *tok);
     void astOperand2(Token *tok);
-    void astFunctionCall();
-    void astHandleParentheses();
 
     const Token * astOperand1() const {
         return _astOperand1;
     }
     const Token * astOperand2() const {
         return _astOperand2;
+    }
+    const Token * astParent() const {
+        return _astParent;
     }
     const Token *astTop() const {
         const Token *ret = this;
@@ -671,13 +740,40 @@ public:
         return ret;
     }
 
-    std::string astString() const {
+    /**
+     * Is current token a calculation? Only true for operands.
+     * For '*' and '&' tokens it is looked up if this is a
+     * dereference or address-of. A dereference or address-of is not
+     * counted as a calculation.
+     * @return returns true if current token is a calculation
+     */
+    bool isCalculation() const;
+
+    void clearAst() {
+        _astOperand1 = _astOperand2 = _astParent = NULL;
+    }
+
+    std::string astString(const char *sep = "") const {
         std::string ret;
         if (_astOperand1)
-            ret = _astOperand1->astString();
+            ret = _astOperand1->astString(sep);
         if (_astOperand2)
-            ret += _astOperand2->astString();
-        return ret+_str;
+            ret += _astOperand2->astString(sep);
+        return ret + sep + _str;
+    }
+
+    std::string astStringVerbose(const unsigned int indent1, const unsigned int indent2) const;
+
+    std::string expressionString() const;
+
+    void printAst(bool verbose) const;
+
+    void printValueFlow() const;
+    static void isCPP(bool isCPP) {
+        _isCPP = isCPP;
+    }
+    static bool isCPP() {
+        return _isCPP;
     }
 };
 

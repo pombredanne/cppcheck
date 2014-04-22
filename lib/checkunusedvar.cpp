@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,7 +40,7 @@ public:
     /** Store information about variable usage */
     class VariableUsage {
     public:
-        VariableUsage(const Variable *var = 0,
+        VariableUsage(const Variable *var = nullptr,
                       VariableType type = standard,
                       bool read = false,
                       bool write = false,
@@ -381,7 +381,7 @@ void Variables::leaveScope(bool insideLoop)
         for (std::set<unsigned int>::const_iterator readIter = currentVarReadInScope.begin();
              readIter != currentVarReadInScope.end();
              ++readIter) {
-            read(*readIter, NULL);
+            read(*readIter, nullptr);
         }
     }
 
@@ -688,7 +688,7 @@ void CheckUnusedVar::checkFunctionVariableUsage_iterateScopes(const Scope* const
             else if (_tokenizer->isC() ||
                      i->typeEndToken()->isStandardType() ||
                      isRecordTypeWithoutSideEffects(i->type()) ||
-                     (Token::simpleMatch(i->typeStartToken(), "std ::") &&
+                     (i->isStlType() &&
                       i->typeStartToken()->strAt(2) != "lock_guard" &&
                       i->typeStartToken()->strAt(2) != "unique_lock"))
                 type = Variables::standard;
@@ -752,7 +752,7 @@ void CheckUnusedVar::checkFunctionVariableUsage_iterateScopes(const Scope* const
             variables.clear();
             break;
         }
-        if (Token::Match(tok, "goto")) { // https://sourceforge.net/apps/trac/cppcheck/ticket/4447
+        if (Token::simpleMatch(tok, "goto")) { // https://sourceforge.net/apps/trac/cppcheck/ticket/4447
             variables.clear();
             break;
         }
@@ -790,7 +790,7 @@ void CheckUnusedVar::checkFunctionVariableUsage_iterateScopes(const Scope* const
                 for (const Token *body = end->linkAt(-1); body != end; body = body->next()) {
                     if (body->varId() == 0U)
                         continue;
-                    if (!Token::Match(body->next(),"="))
+                    if (!Token::simpleMatch(body->next(),"="))
                         readvar.insert(body->varId());
                     else if (readvar.find(body->varId()) != readvar.end())
                         variables.erase(body->varId());
@@ -1118,7 +1118,7 @@ void CheckUnusedVar::checkFunctionVariableUsage()
                 unusedVariableError(usage._var->nameToken(), varname);
 
             // variable has not been written but has been modified
-            else if (usage._modified && !usage._write && !usage._allocateMemory && !Token::simpleMatch(var->typeStartToken(), "std ::"))
+            else if (usage._modified && !usage._write && !usage._allocateMemory && !var->isStlType())
                 unassignedVariableError(usage._var->nameToken(), varname);
 
             // variable has been written but not read
@@ -1126,7 +1126,7 @@ void CheckUnusedVar::checkFunctionVariableUsage()
                 unreadVariableError(usage._lastAccess, varname);
 
             // variable has been read but not written
-            else if (!usage._write && !usage._allocateMemory && !Token::simpleMatch(var->typeStartToken(), "std ::"))
+            else if (!usage._write && !usage._allocateMemory && !var->isStlType() && !isEmptyType(var->type()))
                 unassignedVariableError(usage._var->nameToken(), varname);
         }
     }
@@ -1192,7 +1192,7 @@ void CheckUnusedVar::checkStructMemberUsage()
             if (!structname.empty()) {
                 const std::string pattern1(structname + " %var% ;");
                 const Token *tok2 = tok;
-                while (NULL != (tok2 = Token::findmatch(tok2->next(), pattern1.c_str()))) {
+                while (nullptr != (tok2 = Token::findmatch(tok2->next(), pattern1.c_str()))) {
                     if (Token::simpleMatch(tok2->tokAt(3), (tok2->strAt(1) + " = {").c_str())) {
                         structname.clear();
                         break;
@@ -1270,8 +1270,8 @@ bool CheckUnusedVar::isRecordTypeWithoutSideEffects(const Type* type)
     // a type that has no side effects (no constructors and no members with constructors)
     /** @todo false negative: check constructors for side effects */
 
-    std::pair<std::map<Type const *,bool>::iterator,bool> found=isRecordTypeWithoutSideEffectsMap.insert(
-                std::pair<const Type *,bool>(type,false)); //Initialize with side effects for possilbe recursions
+    std::pair<std::map<const Type *,bool>::iterator,bool> found=isRecordTypeWithoutSideEffectsMap.insert(
+                std::pair<const Type *,bool>(type,false)); //Initialize with side effects for possible recursions
     bool & withoutSideEffects=found.first->second;
     if (!found.second)
         return withoutSideEffects;
@@ -1290,4 +1290,30 @@ bool CheckUnusedVar::isRecordTypeWithoutSideEffects(const Type* type)
 
     withoutSideEffects=false;   // unknown types are assumed to have side effects
     return withoutSideEffects;
+}
+
+bool CheckUnusedVar::isEmptyType(const Type* type)
+{
+    // a type that has no variables and no constructor
+
+    std::pair<std::map<const Type *,bool>::iterator,bool> found=isEmptyTypeMap.insert(
+                std::pair<const Type *,bool>(type,false));
+    bool & emptyType=found.first->second;
+    if (!found.second)
+        return emptyType;
+
+    if (type && type->classScope && type->classScope->numConstructors == 0 &&
+        (type->classScope->varlist.empty())) {
+        for (std::vector<Type::BaseInfo>::const_iterator i = type->derivedFrom.begin(); i != type->derivedFrom.end(); ++i) {
+            if (!isEmptyType(i->type)) {
+                emptyType=false;
+                return emptyType;
+            }
+        }
+        emptyType=true;
+        return emptyType;
+    }
+
+    emptyType=false;   // unknown types are assumed to be nonempty
+    return emptyType;
 }

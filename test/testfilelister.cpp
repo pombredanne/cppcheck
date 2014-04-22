@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -64,7 +64,7 @@ private:
 #else
         current_dir.resize(1024);
 #endif
-        while (getcwd(&current_dir[0], current_dir.size()) == NULL && errno == ERANGE) {
+        while (getcwd(&current_dir[0], current_dir.size()) == nullptr && errno == ERANGE) {
             current_dir.resize(current_dir.size() + 1024);
         }
 
@@ -76,8 +76,8 @@ private:
     void recursiveAddFiles() const {
         // Recursively add add files..
         std::map<std::string, std::size_t> files;
-        Settings settings; // TODO(struscott): Pull in settings
-        FileLister::recursiveAddFiles(files, ".", &settings.library);
+        std::set<std::string> extra;
+        FileLister::recursiveAddFiles(files, ".", extra);
 
         // In case there are leading "./"..
         for (std::map<std::string, std::size_t>::iterator i = files.begin(); i != files.end();) {

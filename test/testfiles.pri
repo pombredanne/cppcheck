@@ -23,6 +23,7 @@ SOURCES += $${BASEPATH}/test64bit.cpp \
            $${BASEPATH}/testinternal.cpp \
            $${BASEPATH}/testio.cpp \
            $${BASEPATH}/testleakautovar.cpp \
+           $${BASEPATH}/testlibrary.cpp \
            $${BASEPATH}/testmathlib.cpp \
            $${BASEPATH}/testmemleak.cpp \
            $${BASEPATH}/testnonreentrantfunctions.cpp \
@@ -35,6 +36,7 @@ SOURCES += $${BASEPATH}/test64bit.cpp \
            $${BASEPATH}/testpostfixoperator.cpp \
            $${BASEPATH}/testpreprocessor.cpp \
            $${BASEPATH}/testrunner.cpp \
+           $${BASEPATH}/testsamples.cpp \
            $${BASEPATH}/testsimplifytokens.cpp \
            $${BASEPATH}/testsizeof.cpp \
            $${BASEPATH}/teststl.cpp \
@@ -48,4 +50,5 @@ SOURCES += $${BASEPATH}/test64bit.cpp \
            $${BASEPATH}/testuninitvar.cpp \
            $${BASEPATH}/testunusedfunctions.cpp \
            $${BASEPATH}/testunusedprivfunc.cpp \
-           $${BASEPATH}/testunusedvar.cpp
+           $${BASEPATH}/testunusedvar.cpp \
+           $${BASEPATH}/testvalueflow.cpp

@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -64,7 +64,7 @@ namespace {
 
 CheckClass::CheckClass(const Tokenizer *tokenizer, const Settings *settings, ErrorLogger *errorLogger)
     : Check(myName(), tokenizer, settings, errorLogger),
-      symbolDatabase(tokenizer?tokenizer->getSymbolDatabase():NULL)
+      symbolDatabase(tokenizer?tokenizer->getSymbolDatabase():nullptr)
 {
 
 }
@@ -89,7 +89,7 @@ void CheckClass::constructors()
             // If there is a private variable, there should be a constructor..
             std::list<Variable>::const_iterator var;
             for (var = scope->varlist.begin(); var != scope->varlist.end(); ++var) {
-                if (var->isPrivate() && !var->isStatic() &&
+                if (var->isPrivate() && !var->isStatic() && !Token::Match(var->nameToken(), "%varid% ; %varid% =", var->declarationId()) &&
                     (!var->isClass() || (var->type() && var->type()->needInitialization == Type::True))) {
                     noConstructorError(scope->classDef, scope->className, scope->classDef->str() == "struct");
                     break;
@@ -432,10 +432,12 @@ bool CheckClass::isBaseClassFunc(const Token *tok, const Scope *scope)
 
 void CheckClass::initializeVarList(const Function &func, std::list<const Function *> &callstack, const Scope *scope, std::vector<Usage> &usage)
 {
+    if (!func.functionScope)
+        throw InternalError(0, "Internal Error: Invalid syntax"); // #5702
     bool initList = func.isConstructor();
     const Token *ftok = func.arg->link()->next();
     int level = 0;
-    for (; ftok != func.functionScope->classEnd; ftok = ftok->next()) {
+    for (; ftok && ftok != func.functionScope->classEnd; ftok = ftok->next()) {
         // Class constructor.. initializing variables like this
         // clKalle::clKalle() : var(value) { }
         if (initList) {
@@ -468,8 +470,35 @@ void CheckClass::initializeVarList(const Function &func, std::list<const Functio
                         }
                     }
                 }
-            } else if (level == 0 && Token::Match(ftok, "%var% {") && ftok->str() != "const" && Token::Match(ftok->next()->link()->next(), ",|{|%type%")) {
-                initVar(ftok->str(), scope, usage);
+            } else if (level == 0 && Token::Match(ftok, "%var% {") && ftok->str() != "const" && Token::Match(ftok->next()->link()->next(), "%type%|,|{")) {
+                if (ftok->str() != func.name()) {
+                    initVar(ftok->str(), scope, usage);
+                } else { // c++11 delegate constructor
+                    const Function *member = scope->findFunction(ftok);
+                    // member function found
+                    if (member) {
+                        // recursive call
+                        // assume that all variables are initialized
+                        if (std::find(callstack.begin(), callstack.end(), member) != callstack.end()) {
+                            /** @todo false negative: just bail */
+                            assignAllVar(usage);
+                            return;
+                        }
+
+                        // member function has implementation
+                        if (member->hasBody) {
+                            // initialize variable use list using member function
+                            callstack.push_back(member);
+                            initializeVarList(*member, callstack, scope, usage);
+                            callstack.pop_back();
+                        }
+
+                        // there is a called member function, but it has no implementation, so we assume it initializes everything
+                        else {
+                            assignAllVar(usage);
+                        }
+                    }
+                }
                 ftok = ftok->linkAt(1);
             } else if (level != 0 && Token::Match(ftok, "%var% =")) // assignment in the initializer: var(value = x)
                 assignVar(ftok->str(), scope, usage);
@@ -550,7 +579,9 @@ void CheckClass::initializeVarList(const Function &func, std::list<const Functio
             ftok = ftok->tokAt(2);
 
         // Skip "classname :: "
-        if (Token::Match(ftok, "%var% ::"))
+        if (Token::Match(ftok, ":: %var%"))
+            ftok = ftok->next();
+        while (Token::Match(ftok, "%var% ::"))
             ftok = ftok->tokAt(2);
 
         // Clearing all variables..
@@ -763,6 +794,9 @@ void CheckClass::initializationListUsage()
                                 tok2->strAt(-1)!=".") { // Is there a dependency between two member variables?
                                 allowed = false;
                                 break;
+                            } else if (var2 && (var2->isArray() && var2->isLocal())) { // Can't initialize with a local array
+                                allowed = false;
+                                break;
                             }
                         } else if (tok2->str() == "this") { // 'this' instance is not completely constructed in initialization list
                             allowed = false;
@@ -803,7 +837,7 @@ static bool checkFunctionUsage(const std::string& name, const Scope* scope)
         if (func->functionScope) {
             if (Token::Match(func->tokenDef, "%var% (")) {
                 for (const Token *ftok = func->tokenDef->tokAt(2); ftok && ftok->str() != ")"; ftok = ftok->next()) {
-                    if (Token::Match(ftok, "= %var% (") && ftok->strAt(1) == name)
+                    if (Token::Match(ftok, "= %var% [(,)]") && ftok->strAt(1) == name)
                         return true;
                     if (ftok->str() == "(")
                         ftok = ftok->link();
@@ -837,14 +871,14 @@ void CheckClass::privateFunctions()
     for (std::size_t i = 0; i < classes; ++i) {
         const Scope * scope = symbolDatabase->classAndStructScopes[i];
 
-        // dont check borland classes with properties..
+        // do not check borland classes with properties..
         if (Token::findsimplematch(scope->classStart, "; __property ;", scope->classEnd))
             continue;
 
         std::list<const Function*> FuncList;
         for (std::list<Function>::const_iterator func = scope->functionList.begin(); func != scope->functionList.end(); ++func) {
             // Get private functions..
-            if (func->type == Function::eFunction && func->access == Private)
+            if (func->type == Function::eFunction && func->access == Private && !func->isOperator) // TODO: There are smarter ways to check private operator usage
                 FuncList.push_back(&*func);
         }
 
@@ -898,7 +932,7 @@ static const Scope* findFunctionOf(const Scope* scope)
     return 0;
 }
 
-void CheckClass::noMemset()
+void CheckClass::checkMemset()
 {
     const std::size_t functions = symbolDatabase->functionScopes.size();
     for (std::size_t i = 0; i < functions; ++i) {
@@ -908,15 +942,15 @@ void CheckClass::noMemset()
                 const Token* arg1 = tok->tokAt(2);
                 const Token* arg3 = arg1;
                 arg3 = arg3->nextArgument();
-                arg3 = (arg3 != NULL) ? arg3->nextArgument() : NULL;
+                arg3 = (arg3 != nullptr) ? arg3->nextArgument() : nullptr;
                 if (!arg3)
                     // weird, shouldn't happen: memset etc should have
                     // 3 arguments.
                     continue;
 
 
-                const Token *typeTok = 0;
-                const Scope *type = 0;
+                const Token *typeTok = nullptr;
+                const Scope *type = nullptr;
                 if (Token::Match(arg3, "sizeof ( %type% ) )"))
                     typeTok = arg3->tokAt(2);
                 else if (Token::Match(arg3, "sizeof ( %type% :: %type% ) )"))
@@ -940,7 +974,7 @@ void CheckClass::noMemset()
                     if (var && arg1->strAt(1) == ",") {
                         if (var->isPointer()) {
                             derefs--;
-                            if (var->typeEndToken() && Token::Match(var->typeEndToken()->previous(), "* *")) // Check if it's a pointer to pointer
+                            if (var->typeEndToken() && Token::simpleMatch(var->typeEndToken()->previous(), "* *")) // Check if it's a pointer to pointer
                                 derefs--;
                         }
 
@@ -949,6 +983,20 @@ void CheckClass::noMemset()
 
                         if (derefs == 0)
                             type = var->typeScope();
+
+                        // TODO: The SymbolDatabase mix up variables in nested structs.
+                        //       So we must bailout right now if there are nested structs.
+                        bool bailout = false;
+                        for (const Token *typetok2 = var->typeStartToken(); typetok2 && typetok2 != var->typeEndToken(); typetok2 = typetok2->next()) {
+                            if (typetok2->str() == "::")
+                                bailout = true;
+                            if (typetok2->str() == "{") {
+                                bailout = false;
+                                break;
+                            }
+                        }
+                        if (bailout)
+                            continue;
                     }
                 }
 
@@ -965,10 +1013,13 @@ void CheckClass::noMemset()
                         type = t->classScope;
                 }
 
-                if (type)
-                    checkMemsetType(&(*scope), tok, type, false);
+                if (type) {
+                    std::list<const Scope *> parsedTypes;
+                    checkMemsetType(&(*scope), tok, type, false, parsedTypes);
+                }
             } else if (tok->variable() && tok->variable()->typeScope() && Token::Match(tok, "%var% = calloc|malloc|realloc|g_malloc|g_try_malloc|g_realloc|g_try_realloc (")) {
-                checkMemsetType(&(*scope), tok->tokAt(2), tok->variable()->typeScope(), true);
+                std::list<const Scope *> parsedTypes;
+                checkMemsetType(&(*scope), tok->tokAt(2), tok->variable()->typeScope(), true, parsedTypes);
 
                 if (tok->variable()->typeScope()->numConstructors > 0 && _settings->isEnabled("warning"))
                     mallocOnClassWarning(tok, tok->strAt(2), tok->variable()->typeScope()->classDef);
@@ -977,12 +1028,17 @@ void CheckClass::noMemset()
     }
 }
 
-void CheckClass::checkMemsetType(const Scope *start, const Token *tok, const Scope *type, bool allocation)
+void CheckClass::checkMemsetType(const Scope *start, const Token *tok, const Scope *type, bool allocation, std::list<const Scope *> parsedTypes)
 {
+    // If type has been checked there is no need to check it again
+    if (std::find(parsedTypes.begin(), parsedTypes.end(), type) != parsedTypes.end())
+        return;
+    parsedTypes.push_back(type);
+
     // recursively check all parent classes
     for (std::size_t i = 0; i < type->definedType->derivedFrom.size(); i++) {
         if (type->definedType->derivedFrom[i].type && type->definedType->derivedFrom[i].type->classScope)
-            checkMemsetType(start, tok, type->definedType->derivedFrom[i].type->classScope, allocation);
+            checkMemsetType(start, tok, type->definedType->derivedFrom[i].type->classScope, allocation, parsedTypes);
     }
 
     // Warn if type is a class that contains any virtual functions
@@ -1001,20 +1057,25 @@ void CheckClass::checkMemsetType(const Scope *start, const Token *tok, const Sco
     std::list<Variable>::const_iterator var;
 
     for (var = type->varlist.begin(); var != type->varlist.end(); ++var) {
+        if (var->isReference()) {
+            memsetErrorReference(tok, tok->str(), type->classDef->str());
+            continue;
+        }
         // don't warn if variable static or const, pointer or reference
-        if (!var->isStatic() && !var->isConst() && !var->isPointer() && !var->isReference()) {
+        if (!var->isStatic() && !var->isConst() && !var->isPointer()) {
             const Token *tok1 = var->typeStartToken();
+            const Scope *typeScope = var->typeScope();
 
             // check for std:: type
-            if (Token::simpleMatch(tok1, "std ::"))
+            if (var->isStlType() && tok1->strAt(2) != "array")
                 if (allocation)
                     mallocOnClassError(tok, tok->str(), type->classDef, "'std::" + tok1->strAt(2) + "'");
                 else
                     memsetError(tok, tok->str(), "'std::" + tok1->strAt(2) + "'", type->classDef->str());
 
             // check for known type
-            else if (var->typeScope())
-                checkMemsetType(start, tok, var->typeScope(), allocation);
+            else if (typeScope && typeScope != type)
+                checkMemsetType(start, tok, typeScope, allocation, parsedTypes);
         }
     }
 }
@@ -1043,8 +1104,18 @@ void CheckClass::mallocOnClassError(const Token* tok, const std::string &memfunc
 
 void CheckClass::memsetError(const Token *tok, const std::string &memfunc, const std::string &classname, const std::string &type)
 {
-    reportError(tok, Severity::error, "memsetClass", "Using '" + memfunc + "' on " + type + " that contains a " + classname + ".");
+    reportError(tok, Severity::error, "memsetClass",
+                "Using '" + memfunc + "' on " + type + " that contains a " + classname + ".\n"
+                "Using '" + memfunc + "' on " + type + " that contains a " + classname + " is unsafe, because constructor, destructor "
+                "and copy operator calls are omitted. These are necessary for this non-POD type to ensure that a valid object "
+                "is created.");
 }
+
+void CheckClass::memsetErrorReference(const Token *tok, const std::string &memfunc, const std::string &type)
+{
+    reportError(tok, Severity::error, "memsetClass", "Using '" + memfunc + "' on " + type + " that contains a reference.");
+}
+
 
 //---------------------------------------------------------------------------
 // ClassCheck: "void operator=(" and "const type & operator=("
@@ -1080,7 +1151,9 @@ void CheckClass::operatorEq()
 
 void CheckClass::operatorEqReturnError(const Token *tok, const std::string &className)
 {
-    reportError(tok, Severity::style, "operatorEq", "'" + className + "::operator=' should return '" + className + " &'.");
+    reportError(tok, Severity::style, "operatorEq", "'" + className + "::operator=' should return '" + className + " &'.\n"
+                "The "+className+"::operator= does not conform to standard C/C++ behaviour. To conform to standard C/C++ behaviour, return a reference to self (such as: '"+className+" &"+className+"::operator=(..) { .. return *this; }'. For safety reasons it might be better to not fix this message. If you think that safety is always more important than conformance then please ignore/suppress this message. For more details about this topic, see the book \"Effective C++\" by Scott Meyers."
+               );
 }
 
 //---------------------------------------------------------------------------
@@ -1222,7 +1295,7 @@ void CheckClass::operatorEqToSelf()
     }
 }
 
-bool CheckClass::hasAllocation(const Function *func, const Scope* scope)
+bool CheckClass::hasAllocation(const Function *func, const Scope* scope) const
 {
     // This function is called when no simple check was found for assignment
     // to self.  We are currently looking for:
@@ -1236,7 +1309,7 @@ bool CheckClass::hasAllocation(const Function *func, const Scope* scope)
             return true;
 
         // check for deallocating memory
-        const Token *var = 0;
+        const Token *var = nullptr;
         if (Token::Match(tok, "free ( %var%"))
             var = tok->tokAt(2);
         else if (Token::Match(tok, "delete [ ] %var%"))
@@ -1379,7 +1452,7 @@ void CheckClass::virtualDestructor()
 
                 // Find the destructor declaration for the base class.
                 const Function *base_destructor = derivedFromScope->getDestructor();
-                const Token *base = 0;
+                const Token *base = nullptr;
                 if (base_destructor)
                     base = base_destructor->token;
 
@@ -1529,7 +1602,7 @@ void CheckClass::checkConst()
     }
 }
 
-bool CheckClass::isMemberVar(const Scope *scope, const Token *tok)
+bool CheckClass::isMemberVar(const Scope *scope, const Token *tok) const
 {
     bool again = false;
 
@@ -1564,7 +1637,7 @@ bool CheckClass::isMemberVar(const Scope *scope, const Token *tok)
     }
 
     // not found in this class
-    if (!scope->definedType->derivedFrom.empty()) {
+    if (!scope->definedType->derivedFrom.empty() && !scope->definedType->hasCircularDependencies()) {
         // check each base class
         for (unsigned int i = 0; i < scope->definedType->derivedFrom.size(); ++i) {
             // find the base class
@@ -1588,7 +1661,7 @@ static unsigned int countParameters(const Token *tok)
         return 0;
 
     unsigned int numpar = 1;
-    while (NULL != (tok = tok->nextArgument()))
+    while (nullptr != (tok = tok->nextArgument()))
         numpar++;
 
     return numpar;
@@ -1617,7 +1690,7 @@ static unsigned int countMinArgs(const Token* argList)
     return count;
 }
 
-bool CheckClass::isMemberFunc(const Scope *scope, const Token *tok)
+bool CheckClass::isMemberFunc(const Scope *scope, const Token *tok) const
 {
     unsigned int args = countParameters(tok);
 
@@ -1637,7 +1710,7 @@ bool CheckClass::isMemberFunc(const Scope *scope, const Token *tok)
             const Type *derivedFrom = scope->definedType->derivedFrom[i].type;
 
             // find the function in the base class
-            if (derivedFrom && derivedFrom->classScope) {
+            if (derivedFrom && derivedFrom->classScope && !derivedFrom->hasCircularDependencies()) {
                 if (isMemberFunc(derivedFrom->classScope, tok))
                     return true;
             }
@@ -1647,7 +1720,7 @@ bool CheckClass::isMemberFunc(const Scope *scope, const Token *tok)
     return false;
 }
 
-bool CheckClass::isConstMemberFunc(const Scope *scope, const Token *tok)
+bool CheckClass::isConstMemberFunc(const Scope *scope, const Token *tok) const
 {
     unsigned int args = countParameters(tok);
 
@@ -1677,7 +1750,7 @@ bool CheckClass::isConstMemberFunc(const Scope *scope, const Token *tok)
             const Type *derivedFrom = scope->definedType->derivedFrom[i].type;
 
             // find the function in the base class
-            if (derivedFrom && derivedFrom->classScope) {
+            if (derivedFrom && derivedFrom->classScope && !derivedFrom->hasCircularDependencies()) {
                 if (isConstMemberFunc(derivedFrom->classScope, tok))
                     return true;
             }
@@ -1712,9 +1785,13 @@ bool CheckClass::checkConstFunc(const Scope *scope, const Function *func, bool& 
                 } else if (end->strAt(1) == "[") {
                     if (end->varId()) {
                         const Variable *var = end->variable();
-
-                        if (var && Token::simpleMatch(var->typeStartToken(), "std :: map")) // operator[] changes a map
-                            return (false);
+                        // The container contains the STL types whose operator[] is not a const.
+                        // THIS ARRAY MUST BE ORDERED ALPHABETICALLY
+                        static const char* const stl_containers [] = {
+                            "map", "unordered_map"
+                        };
+                        if (var && var->isStlType(stl_containers))
+                            return false;
                     }
                     if (!jumpBackToken)
                         jumpBackToken = end->next(); // Check inside the [] brackets
@@ -1728,8 +1805,8 @@ bool CheckClass::checkConstFunc(const Scope *scope, const Function *func, bool& 
             if (end->strAt(1) == "(") {
                 const Variable *var = lastVarTok->variable();
                 if (!var)
-                    return (false);
-                if (Token::simpleMatch(var->typeStartToken(), "std ::") // assume all std::*::size() and std::*::empty() are const
+                    return false;
+                if (var->isStlType() // assume all std::*::size() and std::*::empty() are const
                     && (Token::Match(end, "size|empty|cend|crend|cbegin|crbegin|max_size|length|count|capacity|get_allocator|c_str|str ( )") || Token::Match(end, "rfind|copy")))
                     ;
                 else if (!var->typeScope() || !isConstMemberFunc(var->typeScope(), end))
@@ -1959,7 +2036,7 @@ void CheckClass::checkDuplInheritedMembers()
                 for (std::list<Variable>::const_iterator parentClassVarIt = parentClassIt->type->classScope->varlist.begin();
                      parentClassVarIt != parentClassIt->type->classScope->varlist.end();
                      ++parentClassVarIt) {
-                    if (classVarIt->name() == parentClassVarIt->name()) { // Check if the class and its parent have a common variable
+                    if (classVarIt->name() == parentClassVarIt->name() && !parentClassVarIt->isPrivate()) { // Check if the class and its parent have a common variable
                         duplInheritedMembersError(classVarIt->nameToken(), parentClassVarIt->nameToken(),
                                                   classIt->name(), parentClassIt->type->name(), classVarIt->name(),
                                                   classIt->classScope->type == Scope::eStruct,

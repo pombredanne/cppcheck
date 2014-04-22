@@ -1,6 +1,6 @@
 TEMPLATE = app
 TARGET = cppcheck-gui
-CONFIG += warn_on
+CONFIG += warn_on debug
 DEPENDPATH += . \
     ../lib
 INCLUDEPATH += . \
@@ -144,4 +144,8 @@ win32 {
     RC_FILE = cppcheck-gui.rc
     HEADERS += ../lib/version.h
     LIBS += -lshlwapi
+}
+
+contains(QMAKE_CC, gcc) {
+    QMAKE_CXXFLAGS += -std=c++0x
 }

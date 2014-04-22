@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@
 #include <string>
 #include <map>
 #include <list>
+#include <ctime>
 
 class Settings;
 class SymbolDatabase;
@@ -62,7 +63,7 @@ public:
      * \param unknown set to true if it's unknown if the scope is noreturn
      * \return true if scope ends with a function call that might be 'noreturn'
      */
-    bool IsScopeNoReturn(const Token *endScopeToken, bool *unknown = 0) const;
+    bool IsScopeNoReturn(const Token *endScopeToken, bool *unknown = nullptr) const;
 
     /**
      * Tokenize code
@@ -100,12 +101,23 @@ public:
     void setVarId();
 
     /**
-     * Simplify tokenlist
-     *
-     * @return false if there is an error that requires aborting
-     * the checking of this file.
-     */
-    bool simplifyTokenList();
+    * Basic simplification of tokenlist
+    *
+    * @param FileName The filename to run; used to do
+    * markup checks.
+    *
+    * @return false if there is an error that requires aborting
+    * the checking of this file.
+    */
+    bool simplifyTokenList1(const char FileName[]);
+
+    /**
+    * Most aggressive simplification of tokenlist
+    *
+    * @return false if there is an error that requires aborting
+    * the checking of this file.
+    */
+    bool simplifyTokenList2();
 
     /**
      * Deletes dead code between 'begin' and 'end'.
@@ -178,7 +190,7 @@ public:
       * @return true if found nothing or the syntax is correct.
       *         false if syntax is found to be wrong.
       */
-    bool simplifyLabelsCaseDefault();
+    void simplifyLabelsCaseDefault();
 
     /** Remove macros in global scope */
     void removeMacrosInGlobalScope();
@@ -194,6 +206,9 @@ public:
       * 'x = realloc (y, 0);' => 'x = 0; free(y);'
       */
     void simplifyRealloc();
+
+    /** Add parentheses for sizeof: sizeof x => sizeof(x) */
+    void sizeofAddParentheses();
 
     /**
      * Replace sizeof() to appropriate size.
@@ -274,13 +289,13 @@ public:
     void simplifyIfSameInnerCondition();
 
     /**
-     * Simplify the "not" and "and" keywords to "!" and "&&"
-     * accordingly.
+     * Simplify the 'C Alternative Tokens'
      * Examples:
-     * - "if (not p)" => "if (!p)"
-     * - "if (p and q)" => "if (p && q)"
+     * "if(s and t)" => "if(s && t)"
+     * "while((r bitand s) and not t)" => while((r & s) && !t)"
+     * "a and_eq b;" => "a &= b;"
      */
-    bool simplifyLogicalOperators();
+    bool simplifyCAlternativeTokens();
 
     /**
      * Simplify comma into a semicolon when possible:
@@ -322,6 +337,11 @@ public:
     void simplifyTypedef();
 
     /**
+     * Simplify float casts (float)1 => 1.0
+     */
+    void simplifyFloatCasts();
+
+    /**
      * Simplify casts
      */
     void simplifyCasts();
@@ -351,9 +371,6 @@ public:
      * of a given variable
      */
     bool simplifyKnownVariablesSimplify(Token **tok2, Token *tok3, unsigned int varid, const std::string &structname, std::string &value, unsigned int valueVarId, bool valueIsPointer, const Token * const valueToken, int indentlevel) const;
-
-    /** Replace a "goto" with the statements */
-    void simplifyGoto();
 
     /** Simplify useless C++ empty namespaces, like: 'namespace %var% { }'*/
     void simplifyEmptyNamespaces();
@@ -435,7 +452,7 @@ public:
      * into "void f(int x) {"
      * @return false only if there's a syntax error
      */
-    bool simplifyFunctionParameters();
+    void simplifyFunctionParameters();
 
     /**
      * Simplify templates
@@ -476,7 +493,7 @@ public:
 
     void simplifyDefaultAndDeleteInsideClass();
 
-    bool hasComplicatedSyntaxErrorsInTemplates();
+    void findComplicatedSyntaxErrorsInTemplates();
 
     /**
      * Simplify e.g. 'atol("0")' into '0'
@@ -496,12 +513,6 @@ public:
      * @return Modified string, e.g. "a"
      */
     static std::string simplifyString(const std::string &source);
-
-    /**
-     * Use "<" comparison instead of ">"
-     * Use "<=" comparison instead of ">="
-     */
-    void simplifyComparisonOrder();
 
     /**
      * Change "int const x;" into "const int x;"
@@ -557,7 +568,7 @@ public:
      * @return false if there was a mismatch with tokens, this
      * should mean that source code was not valid.
      */
-    bool createLinks();
+    void createLinks();
 
     /**
      * Setup links between < and >.
@@ -578,7 +589,7 @@ public:
      * to catch problems in simplifyTokenList.
      * @return always true.
      */
-    bool validate() const;
+    void validate() const;
 
     /**
      * Remove __declspec()
@@ -708,6 +719,8 @@ public:
     void createSymbolDatabase();
     void deleteSymbolDatabase();
 
+    void printDebugOutput() const;
+
     Token *deleteInvalidTypedef(Token *typeDef);
 
     /**
@@ -727,7 +740,7 @@ public:
     /**
      * Output list of unknown types.
      */
-    void printUnknownTypes();
+    void printUnknownTypes() const;
 
 
     /**
@@ -806,6 +819,10 @@ private:
      * TimerResults
      */
     TimerResults *m_timerResults;
+#ifdef MAXTIME
+    /** Tokenizer maxtime */
+    std::time_t maxtime;
+#endif
 };
 
 /// @}

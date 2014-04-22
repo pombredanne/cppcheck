@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -62,6 +62,7 @@ unsigned int       TestFixture::countTests;
 std::size_t TestFixture::fails_counter = 0;
 std::size_t TestFixture::todos_counter = 0;
 std::size_t TestFixture::succeeded_todos_counter = 0;
+std::set<std::string> TestFixture::missingLibs;
 
 TestFixture::TestFixture(const std::string &_name)
     :classname(_name)
@@ -122,20 +123,6 @@ void TestFixture::assert_(const char *filename, unsigned int linenr, bool condit
     }
 }
 
-void TestFixture::todoAssert(const char *filename, unsigned int linenr, bool condition) const
-{
-    if (condition) {
-        if (gcc_style_errors) {
-            errmsg << filename << ':' << linenr << ": Assertion succeeded unexpectedly." << std::endl;
-        } else {
-            errmsg << "Assertion succeeded unexpectedly in " << filename << " at line " << linenr << std::endl;
-        }
-        ++succeeded_todos_counter;
-    } else {
-        ++todos_counter;
-    }
-}
-
 void TestFixture::assertEquals(const char *filename, unsigned int linenr, const std::string &expected, const std::string &actual, const std::string &msg) const
 {
     if (expected != actual) {
@@ -148,15 +135,17 @@ void TestFixture::assertEquals(const char *filename, unsigned int linenr, const 
                    << writestr(actual, true)
                    << '.'
                    << std::endl;
+            if (!msg.empty())
+                errmsg << msg << std::endl;
         } else {
             errmsg << "Assertion failed in " << filename << " at line " << linenr << std::endl
                    << "Expected:" << std::endl
                    << writestr(expected) << std::endl
                    << "Actual:" << std::endl
-                   << writestr(actual) << std::endl << "_____" << std::endl;
-        }
-        if (!msg.empty()) {
-            errmsg << msg << std::endl;
+                   << writestr(actual) << std::endl;
+            if (!msg.empty())
+                errmsg << "Hint:" << std::endl << msg << std::endl;
+            errmsg << "_____" << std::endl;
         }
     }
 }
@@ -220,13 +209,9 @@ void TestFixture::assertThrowFail(const char *filename, unsigned int linenr) con
     }
 }
 
-void TestFixture::printTests()
+void TestFixture::complainMissingLib(const char* libname) const
 {
-    const std::list<TestFixture *> &tests = TestRegistry::theInstance().tests();
-
-    for (std::list<TestFixture *>::const_iterator it = tests.begin(); it != tests.end(); ++it) {
-        std::cout << (*it)->classname << std::endl;
-    }
+    missingLibs.insert(libname);
 }
 
 void TestFixture::run(const std::string &str)
@@ -284,6 +269,13 @@ std::size_t TestFixture::runTests(const options& args)
 
     std::cerr << "Tests failed: " << fails_counter << std::endl << std::endl;
     std::cerr << errmsg.str();
+
+    if (!missingLibs.empty()) {
+        std::cerr << "Missing libraries: ";
+        for (std::set<std::string>::const_iterator i = missingLibs.begin(); i != missingLibs.end(); ++i)
+            std::cerr << *i << "  ";
+        std::cerr << std::endl << std::endl;
+    }
     std::cerr.flush();
     return fails_counter;
 }

@@ -15,7 +15,7 @@
         <source>Cppcheck - A tool for static C/C++ code analysis.</source>
         <translation>Cppcheck - 정적 C/C++ 코드 분석 도구.</translation>
     </message>
-    <message utf8="true">
+    <message>
         <source>Copyright © 2007-2012 Daniel Marjamäki and cppcheck team.</source>
         <translation type="obsolete">Copyright © 2007-2012 Daniel Marjamäki and cppcheck team.</translation>
     </message>
@@ -31,7 +31,11 @@ of the GNU General Public License version 3</source>
     </message>
     <message utf8="true">
         <source>Copyright © 2007-2013 Daniel Marjamäki and cppcheck team.</source>
-        <translation type="unfinished">Copyright © 2007-2012 Daniel Marjamäki and cppcheck team. {2007-2013 ?}</translation>
+        <translation type="obsolete">Copyright © 2007-2012 Daniel Marjamäki and cppcheck team. {2007-2013 ?}</translation>
+    </message>
+    <message utf8="true">
+        <source>Copyright © 2007-2014 Daniel Marjamäki and cppcheck team.</source>
+        <translation type="unfinished">Copyright © 2007-2012 Daniel Marjamäki and cppcheck team. {2007-2013 ?} {2007-2014 ?}</translation>
     </message>
 </context>
 <context>
@@ -644,20 +648,6 @@ Opening a new XML file will clear current results.Do you want to proceed?</sourc
         <translation type="unfinished">검사할 파일 선택</translation>
     </message>
     <message>
-        <source>Cppcheck GUI.
-
-Syntax:
-    cppcheck-gui [OPTIONS] [files or paths]
-
-Options:
-    -h, --help     Print this help
-    -p &lt;file&gt;      Open given project file and start checking it
-    -l &lt;file&gt;      Open given results xml file
-    -d &lt;directory&gt; Specify the directory that was checked to generate the results xml specified with -l
-    -v, --version  Show program version</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Cppcheck GUI - Command line parameters</source>
         <translation type="unfinished"></translation>
     </message>
@@ -680,6 +670,33 @@ Options:
     <message>
         <source>C++03</source>
         <translation type="unfinished">C++03</translation>
+    </message>
+    <message>
+        <source>Failed to load the selected library %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cppcheck GUI.
+
+Syntax:
+    cppcheck-gui [OPTIONS] [files or paths]
+
+Options:
+    -h, --help              Print this help
+    -p &lt;file&gt;               Open given project file and start checking it
+    -l &lt;file&gt;               Open given results xml file
+    -d &lt;directory&gt;          Specify the directory that was checked to generate the results xml specified with -l
+    -v, --version           Show program version
+    --data-dir=&lt;directory&gt;  Specify directory where GUI datafiles are located (translations, cfg)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to load %1. Your Cppcheck installation is broken. You can use --data-dir=&lt;directory&gt; at the command line to specify where this file is located.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -778,6 +795,22 @@ Options:
         <source>Exclude</source>
         <translation>Exclude</translation>
     </message>
+    <message>
+        <source>Libraries:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Suppressions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Suppression list:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ProjectFileDialog</name>
@@ -796,6 +829,14 @@ Options:
     <message>
         <source>Select directory to ignore</source>
         <translation>무시할 디렉토리 선택</translation>
+    </message>
+    <message>
+        <source>Add Suppression</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select error id suppress:</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

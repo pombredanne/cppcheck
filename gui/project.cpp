@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -95,6 +95,10 @@ bool Project::Edit()
     dlg.SetPaths(paths);
     QStringList ignorepaths = mPFile->GetExcludedPaths();
     dlg.SetExcludedPaths(ignorepaths);
+    QStringList libraries = mPFile->GetLibraries();
+    dlg.SetLibraries(libraries);
+    QStringList suppressions = mPFile->GetSuppressions();
+    dlg.SetSuppressions(suppressions);
 
     int rv = dlg.exec();
     if (rv == QDialog::Accepted) {
@@ -108,6 +112,10 @@ bool Project::Edit()
         mPFile->SetCheckPaths(paths);
         QStringList excludedpaths = dlg.GetExcludedPaths();
         mPFile->SetExcludedPaths(excludedpaths);
+        QStringList libraries = dlg.GetLibraries();
+        mPFile->SetLibraries(libraries);
+        QStringList suppressions = dlg.GetSuppressions();
+        mPFile->SetSuppressions(suppressions);
 
         bool writeSuccess = mPFile->Write();
         if (!writeSuccess) {

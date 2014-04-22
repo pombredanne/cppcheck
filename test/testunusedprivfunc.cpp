@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -45,6 +45,7 @@ private:
         TEST_CASE(func_pointer3);
         TEST_CASE(func_pointer4); // ticket #2807
         TEST_CASE(func_pointer5); // ticket #2233
+        TEST_CASE(func_pointer6); // ticket #4787
 
         TEST_CASE(ctor);
         TEST_CASE(ctor2);
@@ -71,6 +72,7 @@ private:
 
         TEST_CASE(multiFile);
         TEST_CASE(unknownBaseTemplate); // ticket #2580
+        TEST_CASE(hierarchie_loop); // ticket 5590
     }
 
 
@@ -85,7 +87,7 @@ private:
         Tokenizer tokenizer(&settings, this);
         std::istringstream istr(code);
         tokenizer.tokenize(istr, "test.cpp");
-        tokenizer.simplifyTokenList();
+        tokenizer.simplifyTokenList2();
 
         // Check for unused private functions..
         CheckClass checkClass(&tokenizer, &settings, this);
@@ -313,6 +315,18 @@ private:
         ASSERT_EQUALS("", errout.str());
     }
 
+
+    void func_pointer6() { // #4787
+        check("class Test {\n"
+              "private:\n"
+              "    static void a(const char* p) { }\n"
+              "public:\n"
+              "    void test(void* f = a) {\n"
+              "        f(\"test\");\n"
+              "    }\n"
+              "};");
+        ASSERT_EQUALS("", errout.str());
+    }
 
 
     void ctor() {
@@ -565,6 +579,19 @@ private:
               "    }\n"
               "};");
         ASSERT_EQUALS("[test.cpp:8]: (style) Unused private function: 'Fred::startListening'\n", errout.str());
+
+        // #5059
+        check("class Fred {\n"
+              "    void* operator new(size_t obj_size, size_t buf_size) {}\n"
+              "};");
+        TODO_ASSERT_EQUALS("[test.cpp:2]: (style) Unused private function: 'Fred::operatornew'\n", "", errout.str()); // No message for operators - we currently cannot check their usage
+
+        check("class Fred {\n"
+              "    void* operator new(size_t obj_size, size_t buf_size) {}\n"
+              "public:\n"
+              "    void* foo() { return new(size) Fred(); }\n"
+              "};");
+        ASSERT_EQUALS("", errout.str());
     }
 
     void testDoesNotIdentifyMethodAsFirstFunctionArgument() {
@@ -677,6 +704,25 @@ private:
               "void Bla::F() const { }");
 
         ASSERT_EQUALS("", errout.str());
+    }
+
+    void hierarchie_loop() {
+        check("class InfiniteB : InfiniteA {\n"
+              "    class D {\n"
+              "    };\n"
+              "};\n"
+              "namespace N {\n"
+              "    class InfiniteA : InfiniteB {\n"
+              "    };\n"
+              "}\n"
+              "class InfiniteA : InfiniteB {\n"
+              "    void foo();\n"
+              "};\n"
+              "void InfiniteA::foo() {\n"
+              "    C a;\n"
+              "}");
+
+        ASSERT_EQUALS("[test.cpp:10]: (style) Unused private function: 'InfiniteA::foo'\n", errout.str());
     }
 
 };

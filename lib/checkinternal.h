@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -73,6 +73,7 @@ public:
     void checkRedundantNextPrevious();
 
 private:
+    void multiComparePatternError(const Token *tok, const std::string &pattern, const std::string &funcname);
     void simplePatternError(const Token *tok, const std::string &pattern, const std::string &funcname);
     void complexPatternError(const Token *tok, const std::string &pattern, const std::string &funcname);
     void missingPercentCharacterError(const Token *tok, const std::string &pattern, const std::string &funcname);
@@ -81,6 +82,7 @@ private:
 
     void getErrorMessages(ErrorLogger *errorLogger, const Settings *settings) const {
         CheckInternal c(0, settings, errorLogger);
+        c.multiComparePatternError(0, ";|%type%", "Match");
         c.simplePatternError(0, "class {", "Match");
         c.complexPatternError(0, "%type% ( )", "Match");
         c.missingPercentCharacterError(0, "%num", "Match");

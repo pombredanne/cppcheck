@@ -14,10 +14,11 @@ if [[ "`astyle --version 2>&1`" != ${ASTYLE_VERSION}* ]]; then
 fi
 
 style="--style=stroustrup --indent=spaces=4 --indent-namespaces --lineend=linux --min-conditional-indent=0"
-options="--pad-header --unpad-paren --suffix=none --convert-tabs"
+options="--options=none --pad-header --unpad-paren --suffix=none --convert-tabs"
 
 astyle $style $options cli/*.cpp
 astyle $style $options cli/*.h
+astyle $style $options democlient/*.cpp
 astyle $style $options gui/*.cpp
 astyle $style $options gui/*.h
 astyle $style $options -r gui/test/*.cpp
@@ -34,3 +35,5 @@ astyle $style $options --recursive "samples/*.cpp"
 # Convert tabs to spaces.. even in strings
 # sed -i "s/\t/ /g" test/test*.cpp
 
+# strip useless whitespaces from config files
+sed -i "s/\ $//" cfg/*

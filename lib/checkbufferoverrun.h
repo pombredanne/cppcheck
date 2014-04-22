@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -62,11 +62,7 @@ public:
     void runSimplifiedChecks(const Tokenizer *tokenizer, const Settings *settings, ErrorLogger *errorLogger) {
         CheckBufferOverrun checkBufferOverrun(tokenizer, settings, errorLogger);
         checkBufferOverrun.bufferOverrun();
-        checkBufferOverrun.negativeIndex();
         checkBufferOverrun.arrayIndexThenCheck();
-
-        /** ExecutionPath checking.. */
-        checkBufferOverrun.executionPaths();
         checkBufferOverrun.writeOutsideBufferSize();
     }
 
@@ -130,9 +126,7 @@ public:
 
     public:
         ArrayInfo();
-        ArrayInfo(const ArrayInfo &);
         ArrayInfo(const Variable *var, const Tokenizer *tokenizer, const unsigned int forcedeclid = 0);
-        ArrayInfo & operator=(const ArrayInfo &ai);
 
         /**
          * Create array info with specified data
@@ -193,7 +187,7 @@ public:
     void parse_for_body(const Token *tok2, const ArrayInfo &arrayInfo, const std::string &strindex, bool condition_out_of_bounds, unsigned int counter_varid, const std::string &min_counter_value, const std::string &max_counter_value);
 
     /** Check readlink or readlinkat() buffer usage */
-    void checkReadlinkBufferUsage(const Token *tok, const Token *scope_begin, const MathLib::bigint total_size, const bool is_readlinkat);
+    void checkReadlinkBufferUsage(const Token *ftok, const Token *scope_begin, const unsigned int varid, const MathLib::bigint total_size);
 
     /**
      * Helper function for checkFunctionCall - check a function parameter
@@ -213,6 +207,7 @@ public:
     void checkFunctionCall(const Token *tok, const ArrayInfo &arrayInfo, std::list<const Token *> callstack);
 
     void arrayIndexOutOfBoundsError(const Token *tok, const ArrayInfo &arrayInfo, const std::vector<MathLib::bigint> &index);
+    void arrayIndexOutOfBoundsError(const Token *tok, const ArrayInfo &arrayInfo, const std::vector<ValueFlow::Value> &index);
     void arrayIndexInForLoop(const Token *tok, const ArrayInfo &arrayInfo);
 
 private:
@@ -222,11 +217,13 @@ private:
     void bufferOverrunError(const Token *tok, const std::string &varnames = "");
     void bufferOverrunError(const std::list<const Token *> &callstack, const std::string &varnames = "");
     void strncatUsageError(const Token *tok);
+    void negativeMemoryAllocationSizeError(const Token *tok); // provide a negative value to memory allocation function
     void outOfBoundsError(const Token *tok, const std::string &what, const bool show_size_info, const MathLib::bigint &supplied_size, const MathLib::bigint &actual_size);
     void sizeArgumentAsCharError(const Token *tok);
     void terminateStrncpyError(const Token *tok, const std::string &varname);
     void bufferNotZeroTerminatedError(const Token *tok, const std::string &varname, const std::string &function);
     void negativeIndexError(const Token *tok, MathLib::bigint index);
+    void negativeIndexError(const Token *tok, const ValueFlow::Value &index);
     void cmdLineArgsError(const Token *tok);
     void pointerOutOfBoundsError(const Token *tok, const std::string &object);  // UB when result of calculation is out of bounds
     void arrayIndexThenCheckError(const Token *tok, const std::string &indexName);
@@ -234,6 +231,8 @@ private:
     void possibleReadlinkBufferOverrunError(const Token *tok, const std::string &funcname, const std::string &varname);
     void argumentSizeError(const Token *tok, const std::string &functionName, const std::string &varname);
     void writeOutsideBufferSizeError(const Token *tok, const std::size_t stringLength, const MathLib::bigint writeLength, const std::string& functionName);
+
+    void valueFlowCheckArrayIndex(const Token * const tok, const ArrayInfo &arrayInfo);
 
 public:
     void getErrorMessages(ErrorLogger *errorLogger, const Settings *settings) const {
@@ -255,6 +254,7 @@ public:
         c.possibleReadlinkBufferOverrunError(0, "readlink", "buffer");
         c.argumentSizeError(0, "function", "array");
         c.writeOutsideBufferSizeError(0,2,3,"write");
+        c.negativeMemoryAllocationSizeError(0);
     }
 private:
 

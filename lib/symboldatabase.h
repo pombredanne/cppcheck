@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,9 @@
 #include <string>
 #include <list>
 #include <vector>
+#include <deque>
 #include <set>
+#include <algorithm>
 
 #include "config.h"
 #include "token.h"
@@ -64,15 +66,28 @@ public:
         Unknown, True, False
     } needInitialization;
 
-    struct BaseInfo {
+    class BaseInfo {
+    public:
+        BaseInfo() :
+            type(NULL), nameTok(NULL), access(Public), isVirtual(false) {
+        }
+
         std::string name;
         const Type* type;
         const Token* nameTok;
         AccessControl access;  // public/protected/private
         bool isVirtual;
+        // allow ordering within containers
+        bool operator<(const BaseInfo& rhs) const {
+            return this->type < rhs.type;
+        }
     };
 
     struct FriendInfo {
+        FriendInfo() :
+            nameStart(NULL), nameEnd(NULL), type(NULL) {
+        }
+
         const Token* nameStart;
         const Token* nameEnd;
         std::string name;
@@ -97,6 +112,13 @@ public:
     const Token *initBaseInfo(const Token *tok, const Token *tok1);
 
     const Function* getFunction(const std::string& funcName) const;
+
+    /**
+    * Check for circulare dependencies, i.e. loops within the class hierarchie
+    * @param anchestors list of anchestors. For internal usage only, clients should not supply this argument.
+    * @return true if there is a circular dependency
+    */
+    bool hasCircularDependencies(std::set<BaseInfo>* anchestors = 0) const;
 };
 
 /** @brief Information about a member variable. */
@@ -152,7 +174,8 @@ public:
           _access(access_),
           _flags(0),
           _type(type_),
-          _scope(scope_) {
+          _scope(scope_),
+          _stlType(false) {
         evaluate();
     }
 
@@ -422,6 +445,33 @@ public:
         return _dimensions[index_].known;
     }
 
+    /**
+     * Checks if the variable is an STL type ('std::')
+     * E.g.:
+     *   std::string s;
+     *   ...
+     *   sVar->isStlType() == true
+     * @return true if it is an stl type and its type matches any of the types in 'stlTypes'
+     */
+    bool isStlType() const {
+        return _stlType;
+    }
+
+    /**
+     * Checks if the variable is of any of the STL types passed as arguments ('std::')
+     * E.g.:
+     *   std::string s;
+     *   ...
+     *   const char *str[] = {"string", "wstring"};
+     *   sVar->isStlType(str) == true
+     * @param stlTypes array of stl types in alphabetical order
+     * @return true if it is an stl type and its type matches any of the types in 'stlTypes'
+     */
+    template <std::size_t array_length>
+    bool isStlType(const char* const(&stlTypes)[array_length]) const {
+        return _stlType && std::binary_search(stlTypes, stlTypes + array_length, _start->strAt(2));
+    }
+
 private:
     // only symbol database can change the type
     friend class SymbolDatabase;
@@ -461,6 +511,9 @@ private:
     /** @brief array dimensions */
     std::vector<Dimension> _dimensions;
 
+    /** @brief true if variable is of STL type */
+    bool _stlType;
+
     /** @brief fill in information, depending on Tokens given at instantiation */
     void evaluate();
 };
@@ -491,8 +544,11 @@ public:
           isExplicit(false),
           isDefault(false),
           isDelete(false),
+          isNoExcept(false),
+          isThrow(false),
           isOperator(false),
-          retFuncPtr(false) {
+          noexceptArg(nullptr),
+          throwArg(nullptr) {
     }
 
     const std::string &name() const {
@@ -505,7 +561,7 @@ public:
     std::size_t minArgCount() const {
         return argumentList.size() - initArgCount;
     }
-    const Variable* getArgumentVar(unsigned int num) const;
+    const Variable* getArgumentVar(std::size_t num) const;
     unsigned int initializedArgCount() const {
         return initArgCount;
     }
@@ -521,6 +577,21 @@ public:
 
     bool isDestructor() const {
         return type==eDestructor;
+    }
+    bool isAttributeConstructor() const {
+        return tokenDef->isAttributeConstructor();
+    }
+    bool isAttributeDestructor() const {
+        return tokenDef->isAttributeDestructor();
+    }
+    bool isAttributePure() const {
+        return tokenDef->isAttributePure();
+    }
+    bool isAttributeConst() const {
+        return tokenDef->isAttributeConst();
+    }
+    bool isAttributeNothrow() const {
+        return tokenDef->isAttributeNothrow();
     }
 
     const Token *tokenDef; // function name token in class definition
@@ -545,8 +616,11 @@ public:
     bool isExplicit;       // is explicit
     bool isDefault;        // is default
     bool isDelete;         // is delete
+    bool isNoExcept;       // is noexcept
+    bool isThrow;          // is throw
     bool isOperator;       // is operator
-    bool retFuncPtr;       // returns function pointer
+    const Token *noexceptArg;
+    const Token *throwArg;
 
     static bool argsMatch(const Scope *info, const Token *first, const Token *second, const std::string &path, unsigned int depth);
 
@@ -763,6 +837,9 @@ private:
     void addNewFunction(Scope **info, const Token **tok);
     static bool isFunction(const Token *tok, const Scope* outerScope, const Token **funcStart, const Token **argStart);
     const Type *findTypeInNested(const Token *tok, const Scope *startScope) const;
+    const Scope *findNamespace(const Token * tok, const Scope * scope) const;
+    Function *findFunctionInScope(const Token *func, const Scope *ns);
+
 
     const Tokenizer *_tokenizer;
     const Settings *_settings;

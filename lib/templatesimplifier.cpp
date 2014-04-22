@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -86,7 +86,7 @@ void TemplateSimplifier::cleanupAfterSimplify(Token *tokens)
                     break;
                 }
                 if (!Token::Match(end, "%var%|::|<|>|>>|,")) {
-                    end = NULL;
+                    end = nullptr;
                     break;
                 }
                 end = end->next();
@@ -263,7 +263,7 @@ unsigned int TemplateSimplifier::templateParameters(const Token *tok)
             return 0;
 
         // Function pointer or prototype..
-        while (tok && tok->str() == "(")
+        while (tok && (tok->str() == "(" || tok->str() == "["))
             tok = tok->link()->next();
         if (!tok)
             return 0;
@@ -425,7 +425,7 @@ std::set<std::string> TemplateSimplifier::expandSpecialized(Token *tokens)
         tok->deleteThis();
 
         // Use this special template in the code..
-        while (NULL != (tok2 = const_cast<Token *>(Token::findmatch(tok2, pattern.c_str())))) {
+        while (nullptr != (tok2 = const_cast<Token *>(Token::findmatch(tok2, pattern.c_str())))) {
             Token::eraseTokens(tok2, Token::findsimplematch(tok2, "("));
             tok2->str(name);
         }
@@ -443,9 +443,10 @@ std::list<Token *> TemplateSimplifier::getTemplateDeclarations(Token *tokens, bo
             tok = tok->linkAt(2);
 
         if (Token::simpleMatch(tok, "template <")) {
+            Token *parmEnd = tok->next()->findClosingBracket();
             codeWithTemplates = true;
 
-            for (const Token *tok2 = tok; tok2; tok2 = tok2->next()) {
+            for (const Token *tok2 = parmEnd; tok2; tok2 = tok2->next()) {
                 // Just a declaration => ignore this
                 if (tok2->str() == ";")
                     break;
@@ -473,6 +474,7 @@ std::list<Token *> TemplateSimplifier::getTemplateInstantiations(Token *tokens)
             if (!tok)
                 break;
         } else if (Token::Match(tok->previous(), "[({};=] %var% <") ||
+                   Token::Match(tok->previous(), "%type% %var% <") ||
                    Token::Match(tok->tokAt(-2), "[,:] private|protected|public %var% <")) {
 
             // Add inner template instantiations first => go to the ">"
@@ -498,7 +500,7 @@ std::list<Token *> TemplateSimplifier::getTemplateInstantiations(Token *tokens)
 
 
 void TemplateSimplifier::useDefaultArgumentValues(const std::list<Token *> &templates,
-        const std::list<Token *> &templateInstantiations)
+        std::list<Token *> * const templateInstantiations)
 {
     for (std::list<Token *>::const_iterator iter1 = templates.begin(); iter1 != templates.end(); ++iter1) {
         // template parameters with default value has syntax such as:
@@ -533,7 +535,7 @@ void TemplateSimplifier::useDefaultArgumentValues(const std::list<Token *> &temp
             continue;
 
         // iterate through all template instantiations
-        for (std::list<Token *>::const_iterator iter2 = templateInstantiations.begin(); iter2 != templateInstantiations.end(); ++iter2) {
+        for (std::list<Token *>::const_iterator iter2 = templateInstantiations->begin(); iter2 != templateInstantiations->end(); ++iter2) {
             Token *tok = *iter2;
 
             if (!Token::Match(tok, (classname + " < %any%").c_str()))
@@ -579,11 +581,27 @@ void TemplateSimplifier::useDefaultArgumentValues(const std::list<Token *> &temp
 
         for (std::list<Token *>::iterator it = eq.begin(); it != eq.end(); ++it) {
             Token * const eqtok = *it;
-            const Token *tok2;
+            Token *tok2;
+            int indentlevel = 0;
             for (tok2 = eqtok->next(); tok2; tok2 = tok2->next()) {
                 if (tok2->str() == "(")
                     tok2 = tok2->link();
-                else if (tok2->str() == "," || tok2->str() == ">")
+                else if (Token::Match(tok2, "%type% <") && templateParameters(tok2->next())) {
+                    std::list<Token*>::iterator ti = std::find(templateInstantiations->begin(),
+                                                     templateInstantiations->end(),
+                                                     tok2);
+                    if (ti != templateInstantiations->end())
+                        templateInstantiations->erase(ti);
+                    ++indentlevel;
+                } else if (indentlevel > 0 && tok2->str() == ">")
+                    --indentlevel;
+                else if (indentlevel > 0 && tok2->str() == ">>") {
+                    indentlevel -= 2;
+                    if (indentlevel < 0)
+                        tok2->str(">");
+                } else if (indentlevel == 0 && Token::Match(tok2, ",|>|>>"))
+                    break;
+                if (indentlevel < 0)
                     break;
             }
             Token::eraseTokens(eqtok, tok2);
@@ -603,7 +621,7 @@ bool TemplateSimplifier::instantiateMatch(const Token *instance, const std::stri
     if (patternAfter) {
         const Token *tok = instance;
         unsigned int indentlevel = 0;
-        for (tok = instance; tok && (tok->str() != ">" || indentlevel > 0); tok = tok->next()) {
+        for (tok = instance; tok && (tok->str() != ">" || indentlevel > 0) && (tok->str() != ">>" || indentlevel > 1); tok = tok->next()) {
             if (Token::Match(tok, "[<,] %var% <") && templateParameters(tok->tokAt(2)) > 0)
                 ++indentlevel;
             if (indentlevel > 0 && tok->str() == ">")
@@ -660,7 +678,7 @@ void TemplateSimplifier::expandTemplate(
 
         // member function implemented outside class definition
         else if (TemplateSimplifier::instantiateMatch(tok3, name, typeParametersInDeclaration.size(), ":: ~| %var% (")) {
-            tokenlist.addtoken(newName.c_str(), tok3->linenr(), tok3->fileIndex());
+            tokenlist.addtoken(newName, tok3->linenr(), tok3->fileIndex());
             while (tok3->str() != "::")
                 tok3 = tok3->next();
         }
@@ -702,7 +720,7 @@ void TemplateSimplifier::expandTemplate(
 
             // replace name..
             if (Token::Match(tok3, (name + " !!<").c_str())) {
-                tokenlist.addtoken(newName.c_str(), tok3->linenr(), tok3->fileIndex());
+                tokenlist.addtoken(newName, tok3->linenr(), tok3->fileIndex());
                 continue;
             }
 
@@ -725,6 +743,10 @@ void TemplateSimplifier::expandTemplate(
             } else if (tok3->str() == "}") {
                 assert(brackets.empty() == false && brackets.top()->str() == "{");
                 Token::createMutualLinks(brackets.top(), tokenlist.back());
+                if (tok3->strAt(1) == ";") {
+                    const Token * tokSemicolon = tok3->next();
+                    tokenlist.addtoken(tokSemicolon, tokSemicolon->linenr(), tokSemicolon->fileIndex());
+                }
                 brackets.pop();
                 if (indentlevel <= 1 && brackets.empty()) {
                     // there is a bug if indentlevel is 0
@@ -778,6 +800,37 @@ static bool isLowerEqualThanMulDiv(const Token* lower)
     return isLowerThanMulDiv(lower) || Token::Match(lower, "[*/%]");
 }
 
+static std::string ShiftInt(const char cop, const Token* left, const Token* right)
+{
+    if (cop == '&' || cop == '|' || cop == '^')
+        return MathLib::calculate(left->str(), right->str(), cop);
+
+    const MathLib::bigint leftInt=MathLib::toLongNumber(left->str());
+    const MathLib::bigint rightInt=MathLib::toLongNumber(right->str());
+    if (cop == '<') {
+        if (left->previous()->str() != "<<" && rightInt > 0) // Ensure that its not a shift operator as used for streams
+            return MathLib::toString(leftInt << rightInt);
+    } else if (rightInt > 0) {
+        return MathLib::toString(leftInt >> rightInt);
+    }
+    return "";
+}
+
+static std::string ShiftUInt(const char cop, const Token* left, const Token* right)
+{
+    if (cop == '&' || cop == '|' || cop == '^')
+        return MathLib::calculate(left->str(), right->str(), cop);
+
+    const MathLib::biguint leftInt=MathLib::toULongNumber(left->str());
+    const MathLib::biguint rightInt=MathLib::toULongNumber(right->str());
+    if (cop == '<') {
+        if (left->previous()->str() != "<<") // Ensure that its not a shift operator as used for streams
+            return MathLib::toString(leftInt << rightInt);
+    } else {
+        return MathLib::toString(leftInt >> rightInt);
+    }
+    return "";
+}
 
 bool TemplateSimplifier::simplifyNumericCalculations(Token *tok)
 {
@@ -806,18 +859,11 @@ bool TemplateSimplifier::simplifyNumericCalculations(Token *tok)
         // Integer operations
         if (Token::Match(op, ">>|<<|&|^|%or%")) {
             const char cop = op->str()[0];
-            const MathLib::bigint leftInt(MathLib::toLongNumber(tok->str()));
-            const MathLib::bigint rightInt(MathLib::toLongNumber(tok->strAt(2)));
             std::string result;
-
-            if (cop == '&' || cop == '|' || cop == '^')
-                result = MathLib::calculate(tok->str(), tok->strAt(2), cop);
-            else if (cop == '<') {
-                if (tok->previous()->str() != "<<" && rightInt > 0) // Ensure that its not a shift operator as used for streams
-                    result = MathLib::toString(leftInt << rightInt);
-            } else if (rightInt > 0)
-                result = MathLib::toString(leftInt >> rightInt);
-
+            if (tok->str().find_first_of("uU") != std::string::npos)
+                result = ShiftUInt(cop, tok, tok->tokAt(2));
+            else
+                result = ShiftInt(cop, tok, tok->tokAt(2));
             if (!result.empty()) {
                 ret = true;
                 tok->str(result);
@@ -1233,11 +1279,7 @@ void TemplateSimplifier::simplifyTemplates(
 
     std::set<std::string> expandedtemplates(TemplateSimplifier::expandSpecialized(tokenlist.front()));
 
-    // Locate templates and set member variable _codeWithTemplates if the code has templates.
-    // this info is used by checks
-    std::list<Token *> templates(TemplateSimplifier::getTemplateDeclarations(tokenlist.front(), _codeWithTemplates));
-
-    if (templates.empty())
+    if (TemplateSimplifier::getTemplateDeclarations(tokenlist.front(), _codeWithTemplates).empty())
         return;
 
     // There are templates..
@@ -1254,6 +1296,8 @@ void TemplateSimplifier::simplifyTemplates(
         }
     }
 
+    std::list<Token *> templates(TemplateSimplifier::getTemplateDeclarations(tokenlist.front(), _codeWithTemplates));
+
     // Locate possible instantiations of templates..
     std::list<Token *> templateInstantiations(TemplateSimplifier::getTemplateInstantiations(tokenlist.front()));
 
@@ -1262,7 +1306,7 @@ void TemplateSimplifier::simplifyTemplates(
         return;
 
     // Template arguments with default values
-    TemplateSimplifier::useDefaultArgumentValues(templates, templateInstantiations);
+    TemplateSimplifier::useDefaultArgumentValues(templates, &templateInstantiations);
 
     // expand templates
     //bool done = false;

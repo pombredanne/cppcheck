@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1356,7 +1356,6 @@ static int doAssignment(Variables &variables, const Token *tok, bool dereference
     Variables::VariableUsage *var1 = variables.find(varid1);
 
     if (var1) {
-        Variables::VariableUsage *var2 = 0;
         int start = 1;
 
         // search for '='
@@ -1437,7 +1436,7 @@ static int doAssignment(Variables &variables, const Token *tok, bool dereference
 
             // check if variable is local
             varid2 = tok->tokAt(next)->varId();
-            var2 = variables.find(varid2);
+            Variables::VariableUsage *var2 = variables.find(varid2);
 
             if (var2) { // local variable (alias or read it)
                 if (var1->_type == Variables::pointer) {

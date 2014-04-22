@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -113,7 +113,7 @@ void CheckSizeof::checkSizeofForPointerSize()
         for (const Token* tok = scope->classStart; tok != scope->classEnd; tok = tok->next()) {
             const Token *tokVar;
             const Token *variable;
-            const Token *variable2 = 0;
+            const Token *variable2 = nullptr;
 
             // Find any function that may use sizeof on a pointer
             // Once leaving those tests, it is mandatory to have:
@@ -218,7 +218,7 @@ void CheckSizeof::sizeofsizeofError(const Token *tok)
 }
 
 //-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
+
 void CheckSizeof::sizeofCalculation()
 {
     if (!_settings->isEnabled("warning"))
@@ -226,16 +226,9 @@ void CheckSizeof::sizeofCalculation()
 
     for (const Token *tok = _tokenizer->tokens(); tok; tok = tok->next()) {
         if (Token::simpleMatch(tok, "sizeof (")) {
-            const Token* const end = tok->linkAt(1);
-            for (const Token *tok2 = tok->tokAt(2); tok2 != end; tok2 = tok2->next()) {
-                if (tok2->isConstOp() && (!tok2->isExpandedMacro() || _settings->inconclusive) && !Token::Match(tok2, ">|<|&") && (Token::Match(tok2->previous(), "%var%") || tok2->str() != "*")) {
-                    if (!(Token::Match(tok2->previous(), "%type%") || Token::Match(tok2->next(), "%type%"))) {
-                        sizeofCalculationError(tok2, tok2->isExpandedMacro());
-                        break;
-                    }
-                } else if (tok2->type() == Token::eIncDecOp)
-                    sizeofCalculationError(tok2, tok2->isExpandedMacro());
-            }
+            const Token *argument = tok->next()->astOperand2();
+            if (argument && argument->isCalculation() && (!argument->isExpandedMacro() || _settings->inconclusive))
+                sizeofCalculationError(argument, argument->isExpandedMacro());
         }
     }
 }
@@ -297,17 +290,17 @@ void CheckSizeof::sizeofVoid()
                    Token::Match(tok, "+|-|++|-- %var%")) { // Arithmetic operations on variable of type "void*"
             int index = (tok->isName()) ? 0 : 1;
             const Variable* var = tok->tokAt(index)->variable();
-            if (var && Token::Match(var->typeStartToken(), "void *")) {
+            if (var && Token::Match(var->typeStartToken(), "void * !!*")) {
                 std::string varname = tok->strAt(index);
                 // In case this 'void *' var is a member then go back to the main object
                 const Token* tok2 = tok->tokAt(index);
                 if (index == 0) {
                     bool isMember = false;
-                    while (Token::Match(tok2->previous(), ".")) {
+                    while (Token::simpleMatch(tok2->previous(), ".")) {
                         isMember = true;
-                        if (Token::Match(tok2->tokAt(-2), ")"))
+                        if (Token::simpleMatch(tok2->tokAt(-2), ")"))
                             tok2 = tok2->tokAt(-2)->link();
-                        else if (Token::Match(tok2->tokAt(-2), "]"))
+                        else if (Token::simpleMatch(tok2->tokAt(-2), "]"))
                             tok2 = tok2->tokAt(-2)->link()->previous();
                         else
                             tok2 = tok2->tokAt(-2);
@@ -322,7 +315,7 @@ void CheckSizeof::sizeofVoid()
                 // Check for cast on operations with '+|-'
                 if (Token::Match(tok, "%var% +|-")) {
                     // Check for cast expression
-                    if (Token::Match(tok2->previous(), ")") && !Token::Match(tok2->previous()->link(), "( const| void *"))
+                    if (Token::simpleMatch(tok2->previous(), ")") && !Token::Match(tok2->previous()->link(), "( const| void *"))
                         continue;
                 }
                 arithOperationsOnVoidPointerError(tok, varname,

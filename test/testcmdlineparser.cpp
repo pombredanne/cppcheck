@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -346,10 +346,10 @@ private:
 
     void defines4() {
         REDIRECT;
-        const char *argv[] = {"cppcheck", "-DDEBUG=", "file.cpp"};
+        const char *argv[] = {"cppcheck", "-DDEBUG=", "file.cpp"}; // #5137 - defining empty macro
         settings.userDefines.clear();
         ASSERT(defParser.ParseFromArgs(3, argv));
-        ASSERT_EQUALS("DEBUG", settings.userDefines);
+        ASSERT_EQUALS("DEBUG=", settings.userDefines);
     }
 
     void enforceLanguage() {
@@ -602,13 +602,13 @@ private:
         TODO_ASSERT_EQUALS(true, false, defParser.ParseFromArgs(4, argv));
     }
 
-    void fileListStdin() {
-        // TODO: Give it some stdin to read from, fails because the list of
-        // files in stdin (_pathnames) is empty
-        REDIRECT;
-        const char *argv[] = {"cppcheck", "--file-list=-", "file.cpp"};
-        TODO_ASSERT_EQUALS(true, false, defParser.ParseFromArgs(3, argv));
-    }
+    /*    void fileListStdin() {
+            // TODO: Give it some stdin to read from, fails because the list of
+            // files in stdin (_pathnames) is empty
+            REDIRECT;
+            const char *argv[] = {"cppcheck", "--file-list=-", "file.cpp"};
+            TODO_ASSERT_EQUALS(true, false, defParser.ParseFromArgs(3, argv));
+        } */
 
     void inlineSuppr() {
         REDIRECT;

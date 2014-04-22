@@ -175,6 +175,15 @@
     <ClCompile Include="testassert.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="testlibrary.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="testvalueflow.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="testsamples.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="options.h">

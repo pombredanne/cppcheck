@@ -50,6 +50,7 @@
     <ClCompile Include="testinternal.cpp" />
     <ClCompile Include="testio.cpp" />
     <ClCompile Include="testleakautovar.cpp" />
+    <ClCompile Include="testlibrary.cpp" />
     <ClCompile Include="testmathlib.cpp" />
     <ClCompile Include="testmemleak.cpp" />
     <ClCompile Include="testnonreentrantfunctions.cpp" />
@@ -62,6 +63,7 @@
     <ClCompile Include="testpostfixoperator.cpp" />
     <ClCompile Include="testpreprocessor.cpp" />
     <ClCompile Include="testrunner.cpp" />
+    <ClCompile Include="testsamples.cpp" />
     <ClCompile Include="testsimplifytokens.cpp" />
     <ClCompile Include="testsizeof.cpp" />
     <ClCompile Include="teststl.cpp" />
@@ -76,6 +78,7 @@
     <ClCompile Include="testunusedfunctions.cpp" />
     <ClCompile Include="testunusedprivfunc.cpp" />
     <ClCompile Include="testunusedvar.cpp" />
+    <ClCompile Include="testvalueflow.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\cli\cmdlineparser.h" />

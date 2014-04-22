@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -50,7 +50,7 @@ public:
         CheckClass checkClass(tokenizer, settings, errorLogger);
 
         // can't be a simplified check .. the 'sizeof' is used.
-        checkClass.noMemset();
+        checkClass.checkMemset();
     }
 
     /** @brief Run checks on the simplified token list */
@@ -93,8 +93,8 @@ public:
      * It can also overwrite the virtual table.
      * Important: The checking doesn't work on simplified tokens list.
      */
-    void noMemset();
-    void checkMemsetType(const Scope *start, const Token *tok, const Scope *type, bool allocation);
+    void checkMemset();
+    void checkMemsetType(const Scope *start, const Token *tok, const Scope *type, bool allocation, std::list<const Scope *> parsedTypes);
 
     /** @brief 'operator=' should return something and it should not be const. */
     void operatorEq();
@@ -139,6 +139,7 @@ private:
     void operatorEqVarError(const Token *tok, const std::string &classname, const std::string &varname, bool inconclusive);
     void unusedPrivateFunctionError(const Token *tok, const std::string &classname, const std::string &funcname);
     void memsetError(const Token *tok, const std::string &memfunc, const std::string &classname, const std::string &type);
+    void memsetErrorReference(const Token *tok, const std::string &memfunc, const std::string &type);
     void mallocOnClassError(const Token* tok, const std::string &memfunc, const Token* classTok, const std::string &classname);
     void mallocOnClassWarning(const Token* tok, const std::string &memfunc, const Token* classTok);
     void operatorEqReturnError(const Token *tok, const std::string &className);
@@ -205,13 +206,13 @@ private:
     void checkReturnPtrThis(const Scope *scope, const Function *func, const Token *tok, const Token *last);
 
     // operatorEqToSelf helper functions
-    bool hasAllocation(const Function *func, const Scope* scope);
+    bool hasAllocation(const Function *func, const Scope* scope) const;
     static bool hasAssignSelf(const Function *func, const Token *rhs);
 
     // checkConst helper functions
-    bool isMemberVar(const Scope *scope, const Token *tok);
-    bool isMemberFunc(const Scope *scope, const Token *tok);
-    bool isConstMemberFunc(const Scope *scope, const Token *tok);
+    bool isMemberVar(const Scope *scope, const Token *tok) const;
+    bool isMemberFunc(const Scope *scope, const Token *tok) const;
+    bool isConstMemberFunc(const Scope *scope, const Token *tok) const;
     bool checkConstFunc(const Scope *scope, const Function *func, bool& memberAccessed);
 
     // constructors helper function

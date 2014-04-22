@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 #include <istream>
 #include <string>
 #include <list>
+#include <set>
 #include "config.h"
 
 class ErrorLogger;
@@ -53,7 +54,7 @@ public:
     /** character that is inserted in expanded macros */
     static char macroChar;
 
-    Preprocessor(Settings *settings = 0, ErrorLogger *errorLogger = 0);
+    Preprocessor(Settings *settings = nullptr, ErrorLogger *errorLogger = nullptr);
 
     static bool missingIncludeFlag;
 
@@ -94,6 +95,9 @@ public:
 
     /** read preprocessor statements into a string. */
     std::string readpreprocessor(std::istream &istr, const unsigned int bom) const;
+
+    /** should __cplusplus be defined? */
+    static bool cplusplus(const Settings *settings, const std::string &filename);
 
     /**
      * Get preprocessed code for a given configuration
@@ -240,7 +244,7 @@ public:
      * @param includes provide a empty list. this is just used to prevent recursive inclusions.
      * \return resulting string
      */
-    std::string handleIncludes(const std::string &code, const std::string &filePath, const std::list<std::string> &includePaths, std::map<std::string,std::string> &defs, std::list<std::string> &pragmaOnce, std::list<std::string> includes);
+    std::string handleIncludes(const std::string &code, const std::string &filePath, const std::list<std::string> &includePaths, std::map<std::string,std::string> &defs, std::set<std::string> &pragmaOnce, std::list<std::string> includes);
 
     void setFile0(const std::string &f) {
         file0 = f;

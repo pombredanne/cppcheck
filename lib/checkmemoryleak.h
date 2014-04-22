@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -91,7 +91,7 @@ public:
     }
 
     /** @brief What type of allocation are used.. the "Many" means that several types of allocation and deallocation are used */
-    enum AllocType { No, Malloc, New, NewArray, File, Fd, Pipe, Dir, OtherMem, OtherRes, Many };
+    enum AllocType { No, Malloc, New, NewArray, File, Fd, Pipe, OtherMem, OtherRes, Many };
 
     void memoryLeak(const Token *tok, const std::string &varname, AllocType alloctype);
 
@@ -204,6 +204,7 @@ public:
 
     /** @brief Unit testing : testing the white list */
     static bool test_white_list(const std::string &funcname);
+    static bool test_white_list_with_lib(const std::string &funcname, const Settings *settings);
 
     /** @brief Perform checking */
     void check();
@@ -449,13 +450,20 @@ public:
     void check();
 
 private:
+    /**
+     * @brief %Check if a call to an allocation function like malloc() is made and its return value is not assigned.
+     * @param scope     The scope of the function to check.
+     */
+    void checkForUnusedReturnValue(const Scope *scope);
 
     void functionCallLeak(const Token *loc, const std::string &alloc, const std::string &functionCall);
+    void returnValueNotUsedError(const Token* tok, const std::string &alloc);
 
     void getErrorMessages(ErrorLogger *e, const Settings *settings) const {
         CheckMemoryLeakNoVar c(0, settings, e);
 
         c.functionCallLeak(0, "funcName", "funcName");
+        c.returnValueNotUsedError(0, "funcName");
     }
 
     static std::string myName() {

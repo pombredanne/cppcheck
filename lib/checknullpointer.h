@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -56,7 +56,6 @@ public:
     void runSimplifiedChecks(const Tokenizer *tokenizer, const Settings *settings, ErrorLogger *errorLogger) {
         CheckNullPointer checkNullPointer(tokenizer, settings, errorLogger);
         checkNullPointer.nullConstantDereference();
-        checkNullPointer.executionPaths();
     }
 
     /**
@@ -95,11 +94,8 @@ public:
     /** @brief dereferencing null constant (after Tokenizer::simplifyKnownVariables) */
     void nullConstantDereference();
 
-    /** @brief new type of check: check execution paths */
-    void executionPaths();
-
     void nullPointerError(const Token *tok);  // variable name unknown / doesn't exist
-    void nullPointerError(const Token *tok, const std::string &varname);
+    void nullPointerError(const Token *tok, const std::string &varname, bool inconclusive=false);
     void nullPointerError(const Token *tok, const std::string &varname, const Token* nullcheck, bool inconclusive = false);
     void nullPointerDefaultArgError(const Token *tok, const std::string &varname);
 private:
@@ -126,12 +122,6 @@ private:
      * looping through items in a linked list in a inner loop..
      */
     void nullPointerLinkedList();
-
-    /**
-     * @brief Does one part of the check for nullPointer().
-     * Dereferencing a struct pointer and then checking if it's NULL..
-     */
-    void nullPointerStructByDeRefAndChec();
 
     /**
      * @brief Does one part of the check for nullPointer().

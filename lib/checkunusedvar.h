@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2013 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -75,6 +75,7 @@ public:
 
 private:
     bool isRecordTypeWithoutSideEffects(const Type* type);
+    bool isEmptyType(const Type* type);
 
     // Error messages..
     void unusedStructMemberError(const Token *tok, const std::string &structname, const std::string &varname);
@@ -110,6 +111,9 @@ private:
     }
 
     std::map<const Type *,bool> isRecordTypeWithoutSideEffectsMap;
+
+    std::map<const Type *,bool> isEmptyTypeMap;
+
 };
 /// @}
 //---------------------------------------------------------------------------
