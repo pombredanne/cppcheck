@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,8 +24,6 @@
 
 #include "config.h"
 #include "check.h"
-#include "tokenize.h"
-#include "errorlogger.h"
 
 /// @addtogroup Checks
 /** @brief Check for functions never called */
@@ -47,7 +45,13 @@ public:
     // * What functions are declared
     void parseTokens(const Tokenizer &tokenizer, const char FileName[], const Settings *settings);
 
-    void check(ErrorLogger * const errorLogger);
+    void check(ErrorLogger * const errorLogger, const Settings& settings);
+
+    /** @brief Parse current TU and extract file info */
+    Check::FileInfo *getFileInfo(const Tokenizer *tokenizer, const Settings *settings) const;
+
+    /** @brief Analyse all file infos for all TU */
+    void analyseWholeProgram(const std::list<Check::FileInfo*> &fileInfo, const Settings& settings, ErrorLogger &errorLogger);
 
     static CheckUnusedFunctions instance;
 

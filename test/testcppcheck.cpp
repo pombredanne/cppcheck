@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,18 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include "cppcheck.h"
 #include "cppcheckexecutor.h"
 #include "testsuite.h"
 #include "path.h"
+#include "check.h"
 
 #include <algorithm>
 #include <list>
 #include <string>
 
-extern std::ostringstream errout;
-extern std::ostringstream output;
 
 class TestCppcheck : public TestFixture {
 public:
@@ -68,8 +66,8 @@ private:
         for (std::list<Check *>::const_iterator i = Check::instances().begin(); i != Check::instances().end(); ++i) {
             const std::string info = (*i)->classInfo();
             if (!info.empty()) {
-                ASSERT('\n' != info[0]);                   // No \n in the beginning
-                ASSERT('\n' == info[info.length()-1]);     // \n at end
+                ASSERT('\n' != info[0]);         // No \n in the beginning
+                ASSERT('\n' == info.back());     // \n at end
                 if (info.size() > 1)
                     ASSERT('\n' != info[info.length()-2]); // Only one \n at end
             }
@@ -82,7 +80,7 @@ private:
         cppCheck.getErrorMessages();
         ASSERT(!errorLogger.id.empty());
 
-        // TODO: check if there are duplicate error ids in errorLogger.id
+        // Check if there are duplicate error ids in errorLogger.id
         std::string duplicate;
         for (std::list<std::string>::iterator it = errorLogger.id.begin();
              it != errorLogger.id.end();

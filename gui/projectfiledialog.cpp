@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -60,6 +60,13 @@ ProjectFileDialog::ProjectFileDialog(const QString &path, QWidget *parent)
         dir.setFilter(QDir::Files | QDir::NoDotAndDotDot);
         foreach(QFileInfo item, dir.entryInfoList()) {
             QString library = item.fileName();
+            {
+                Library lib;
+                const QString fullfilename = sp + "/" + library;
+                const Library::Error err = lib.load(nullptr, fullfilename.toLatin1());
+                if (err.errorcode != Library::OK)
+                    continue;
+            }
             library.chop(4);
             if (library.compare("std", Qt::CaseInsensitive) == 0)
                 continue;

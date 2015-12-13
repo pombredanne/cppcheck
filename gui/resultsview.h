@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@
 class ErrorItem;
 class ApplicationList;
 class QModelIndex;
+class QPrinter;
 class QSettings;
 class CheckStatistics;
 
@@ -43,7 +44,7 @@ class ResultsView : public QWidget {
     Q_OBJECT
 public:
 
-    ResultsView(QWidget * parent = 0);
+    explicit ResultsView(QWidget * parent = 0);
     void Initialize(QSettings *settings, ApplicationList *list);
     virtual ~ResultsView();
 
@@ -83,12 +84,14 @@ public:
     * @param saveAllErrors Save all visible errors
     * @param showNoErrorsMessage Show "no errors"?
     * @param showErrorId Show error id?
+    * @param showInconclusive Show inconclusive?
     */
     void UpdateSettings(bool showFullPath,
                         bool saveFullPath,
                         bool saveAllErrors,
                         bool showNoErrorsMessage,
-                        bool showErrorId);
+                        bool showErrorId,
+                        bool showInconclusive);
 
     /**
     * @brief Set the directory we are checking
@@ -221,6 +224,22 @@ public slots:
     * @param index Position of new selected item.
     */
     void UpdateDetails(const QModelIndex &index);
+
+    /**
+    * @brief Slot opening a print dialog to print the current report
+    */
+    void Print();
+
+    /**
+    * @brief Slot printing the current report to the printer.
+    * @param printer The printer used for printing the report.
+    */
+    void Print(QPrinter* printer);
+
+    /**
+    * @brief Slot opening a print preview dialog
+    */
+    void PrintPreview();
 
 protected:
     /**

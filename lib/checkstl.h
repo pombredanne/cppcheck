@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,6 @@
 #include "config.h"
 #include "check.h"
 
-class Token;
 
 /// @addtogroup Checks
 /// @{
@@ -93,6 +92,7 @@ public:
      * it is bad to dereference it after the erase.
      */
     void erase();
+    void eraseCheckLoopVar(const Scope &scope, const Variable *var);
 
 
     /**
@@ -151,13 +151,7 @@ public:
     void readingEmptyStlContainer();
 
 private:
-
-    /**
-     * Helper function used by the 'erase' function
-     * This function parses a loop
-     * @param it iterator token
-     */
-    void eraseCheckLoop(const Token *it);
+    void readingEmptyStlContainer_parseUsage(const Token* tok, const Library::Container* container, std::map<unsigned int, const Library::Container*>& empty, bool noerror);
 
     void missingComparisonError(const Token *incrementToken1, const Token *incrementToken2);
     void string_c_strThrowError(const Token *tok);
@@ -171,7 +165,7 @@ private:
     void mismatchingContainersError(const Token *tok);
     void invalidIteratorError(const Token *tok, const std::string &func, const std::string &iterator_name);
     void invalidPointerError(const Token *tok, const std::string &func, const std::string &pointer_name);
-    void stlBoundariesError(const Token *tok, const std::string &container_name);
+    void stlBoundariesError(const Token *tok);
     void if_findError(const Token *tok, bool str);
     void sizeError(const Token *tok);
     void redundantIfRemoveError(const Token *tok);
@@ -179,6 +173,7 @@ private:
     void autoPointerError(const Token *tok);
     void autoPointerContainerError(const Token *tok);
     void autoPointerArrayError(const Token *tok);
+    void autoPointerMallocError(const Token *tok, const std::string& allocFunction);
 
     void uselessCallsReturnValueError(const Token *tok, const std::string &varname, const std::string &function);
     void uselessCallsSwapError(const Token *tok, const std::string &varname);
@@ -199,7 +194,7 @@ private:
         c.stlOutOfBoundsError(0, "i", "foo", false);
         c.invalidIteratorError(0, "push_back|push_front|insert", "iterator");
         c.invalidPointerError(0, "push_back", "pointer");
-        c.stlBoundariesError(0, "container");
+        c.stlBoundariesError(0);
         c.if_findError(0, false);
         c.if_findError(0, true);
         c.string_c_strError(0);
@@ -211,6 +206,7 @@ private:
         c.autoPointerError(0);
         c.autoPointerContainerError(0);
         c.autoPointerArrayError(0);
+        c.autoPointerMallocError(0, "malloc");
         c.uselessCallsReturnValueError(0, "str", "find");
         c.uselessCallsSwapError(0, "str");
         c.uselessCallsSubstrError(0, false);
@@ -226,19 +222,19 @@ private:
 
     std::string classInfo() const {
         return "Check for invalid usage of STL:\n"
-               "* out of bounds errors\n"
-               "* misuse of iterators when iterating through a container\n"
-               "* mismatching containers in calls\n"
-               "* dereferencing an erased iterator\n"
-               "* for vectors: using iterator/pointer after push_back has been used\n"
-               "* optimisation: use empty() instead of size() to guarantee fast code\n"
-               "* suspicious condition when using find\n"
-               "* redundant condition\n"
-               "* common mistakes when using string::c_str()\n"
-               "* using auto pointer (auto_ptr)\n"
-               "* useless calls of string and STL functions\n"
-               "* dereferencing an invalid iterator\n"
-               "* reading from empty STL container\n";
+               "- out of bounds errors\n"
+               "- misuse of iterators when iterating through a container\n"
+               "- mismatching containers in calls\n"
+               "- dereferencing an erased iterator\n"
+               "- for vectors: using iterator/pointer after push_back has been used\n"
+               "- optimisation: use empty() instead of size() to guarantee fast code\n"
+               "- suspicious condition when using find\n"
+               "- redundant condition\n"
+               "- common mistakes when using string::c_str()\n"
+               "- using auto pointer (auto_ptr)\n"
+               "- useless calls of string and STL functions\n"
+               "- dereferencing an invalid iterator\n"
+               "- reading from empty STL container\n";
     }
 };
 /// @}

@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,11 +24,13 @@
 #include "config.h"
 #include "settings.h"
 #include "errorlogger.h"
-#include "checkunusedfunctions.h"
+#include "check.h"
 
 #include <string>
 #include <list>
 #include <istream>
+
+class Tokenizer;
 
 /// @addtogroup Core
 /// @{
@@ -81,12 +83,6 @@ public:
     unsigned int check(const std::string &path, const std::string &content);
 
     /**
-     * @brief Check function usage.
-     * @note Call this after all files has been checked
-     */
-    void checkFunctionUsage();
-
-    /**
      * @brief Get reference to current settings.
      * @return a reference to current settings
      */
@@ -121,32 +117,50 @@ public:
      */
     void getErrorMessages();
 
-    /**
-     * @brief Analyse file - It's public so unit tests can be written
-     */
-    void analyseFile(std::istream &f, const std::string &filename);
-
     void tooManyConfigsError(const std::string &file, const std::size_t numberOfConfigurations);
+    void purgedConfigurationMessage(const std::string &file, const std::string& configuration);
 
     void dontSimplify() {
         _simplify = false;
     }
 
+    /** analyse whole program, run this after all TUs has been scanned. */
+    void analyseWholeProgram();
+
+    /** Check if the user wants to check for unused functions
+     * and if it's possible at all */
+    bool unusedFunctionCheckIsEnabled() const;
+
 private:
 
-    /** @brief There has been a internal error => Report information message */
+    /** @brief There has been an internal error => Report information message */
     void internalError(const std::string &filename, const std::string &msg);
 
     /**
      * @brief Process one file.
      * @param filename file name
-     * @param fileContent If this is non-empty then the file will not be loaded
+     * @param fileStream stream the file content can be read from
      * @return amount of errors found
      */
-    unsigned int processFile(const std::string& filename, const std::string& fileContent);
+    unsigned int processFile(const std::string& filename, std::istream& fileStream);
 
-    /** @brief Check file */
-    void checkFile(const std::string &code, const char FileName[]);
+    /**
+     * @brief Check raw tokens
+     * @param tokenizer
+     */
+    void checkRawTokens(const Tokenizer &tokenizer);
+
+    /**
+     * @brief Check normal tokens
+     * @param tokenizer
+     */
+    void checkNormalTokens(const Tokenizer &tokenizer);
+
+    /**
+     * @brief Check simplified tokens
+     * @param tokenizer
+     */
+    void checkSimplifiedTokens(const Tokenizer &tokenizer);
 
     /**
      * @brief Execute rules, if any
@@ -170,19 +184,6 @@ private:
      * @param outmsg Message to show, e.g. "Checking main.cpp..."
      */
     virtual void reportOut(const std::string &outmsg);
-
-    /**
-     * @brief Check given code. If error is found, return true
-     * and print out source of the file. Try to reduce the code
-     * while still showing the error.
-     */
-    bool findError(std::string code, const char FileName[]);
-
-    /**
-     * @brief Replace "from" strings with "to" strings in "code"
-     * and return it.
-     */
-    static void replaceAll(std::string& code, const std::string &from, const std::string &to);
 
     std::list<std::string> _errorList;
     Settings _settings;
@@ -208,6 +209,9 @@ private:
 
     /** Simplify code? true by default */
     bool _simplify;
+
+    /** File info used for whole program analysis */
+    std::list<Check::FileInfo*> fileInfo;
 };
 
 /// @}

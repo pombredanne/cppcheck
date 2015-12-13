@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,9 +21,6 @@
 #include "checkclass.h"
 #include "testsuite.h"
 
-#include <sstream>
-
-extern std::ostringstream errout;
 
 class TestUnusedPrivateFunction : public TestFixture {
 public:
@@ -31,7 +28,11 @@ public:
     }
 
 private:
+    Settings settings;
+
     void run() {
+        settings.addEnabled("style");
+
         TEST_CASE(test1);
         TEST_CASE(test2);
         TEST_CASE(test3);
@@ -73,15 +74,16 @@ private:
         TEST_CASE(multiFile);
         TEST_CASE(unknownBaseTemplate); // ticket #2580
         TEST_CASE(hierarchie_loop); // ticket 5590
+
+        TEST_CASE(staticVariable); //ticket #5566
     }
 
 
-    void check(const char code[]) {
+    void check(const char code[], Settings::PlatformType platform = Settings::Unspecified) {
         // Clear the error buffer..
         errout.str("");
 
-        Settings settings;
-        settings.addEnabled("style");
+        settings.platform(platform);
 
         // Tokenize..
         Tokenizer tokenizer(&settings, this);
@@ -416,7 +418,7 @@ private:
               "class A\n"
               "{\n"
               "public:\n"
-              "    A()\n"
+              "    A();\n"
               "    void a();\n"
               "private:\n"
               "    void b();\n"
@@ -518,7 +520,7 @@ private:
               "public:\n"
               "    Foo() { }\n"
               "    __property int x = {read=getx}\n"
-              "};");
+              "};", Settings::Win32A);
         ASSERT_EQUALS("", errout.str());
     }
 
@@ -531,7 +533,7 @@ private:
               "    }\n"
               "public:\n"
               "    Foo() { }\n"
-              "};");
+              "};", Settings::Win32A);
         ASSERT_EQUALS("", errout.str());
     }
 
@@ -722,9 +724,33 @@ private:
               "    C a;\n"
               "}");
 
-        ASSERT_EQUALS("[test.cpp:10]: (style) Unused private function: 'InfiniteA::foo'\n", errout.str());
+        ASSERT_EQUALS("", errout.str());
     }
 
+    void staticVariable() {
+        check("class Foo {\n"
+              "    static int i;\n"
+              "    static int F() const { return 1; }\n"
+              "};\n"
+              "int Foo::i = Foo::F();");
+        ASSERT_EQUALS("", errout.str());
+
+        check("class Foo {\n"
+              "    static int i;\n"
+              "    int F() const { return 1; }\n"
+              "};\n"
+              "Foo f;\n"
+              "int Foo::i = f.F();");
+        ASSERT_EQUALS("", errout.str());
+
+        check("class Foo {\n"
+              "    static int i;\n"
+              "    static int F() const { return 1; }\n"
+              "};\n"
+              "int Foo::i = sth();"
+              "int i = F();");
+        ASSERT_EQUALS("[test.cpp:3]: (style) Unused private function: 'Foo::F'\n", errout.str());
+    }
 };
 
 REGISTER_TEST(TestUnusedPrivateFunction)

@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,13 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include "tokenize.h"
 #include "check64bit.h"
 #include "testsuite.h"
-#include <sstream>
 
-extern std::ostringstream errout;
 
 class Test64BitPortability : public TestFixture {
 public:
@@ -30,9 +27,11 @@ public:
     }
 
 private:
-
+    Settings settings;
 
     void run() {
+        settings.addEnabled("portability");
+
         TEST_CASE(novardecl);
         TEST_CASE(functionpar);
         TEST_CASE(structmember);
@@ -44,9 +43,6 @@ private:
     void check(const char code[]) {
         // Clear the error buffer..
         errout.str("");
-
-        Settings settings;
-        settings.addEnabled("portability");
 
         // Tokenize..
         Tokenizer tokenizer(&settings, this);
@@ -100,14 +96,20 @@ private:
               "    return 6 + p[2] * 256;\n"
               "}");
         ASSERT_EQUALS("", errout.str());
+
+        check("int foo(int *p) {\n" // #6096
+              "    bool a = p;\n"
+              "    return a;\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
     }
 
     void structmember() {
-        check("struct Foo { int *p };\n"
+        check("struct Foo { int *p; };\n"
               "void f(struct Foo *foo) {\n"
               "    int i = foo->p;\n"
               "}");
-        TODO_ASSERT_EQUALS("[test.cpp:3]: (portability) Assigning a pointer to an integer is not portable.\n", "", errout.str());
+        ASSERT_EQUALS("[test.cpp:3]: (portability) Assigning a pointer to an integer is not portable.\n", errout.str());
     }
 
     void ptrcompare() {

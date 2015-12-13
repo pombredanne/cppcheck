@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@
 #include "library.h"
 #include "suppressions.h"
 #include "standards.h"
+#include "errorlogger.h"
 #include "timer.h"
 
 /// @addtogroup Core
@@ -57,17 +58,25 @@ public:
     /** @brief Is --debug given? */
     bool debug;
 
+    /** @brief Is --debug-normal given? */
+    bool debugnormal;
+
     /** @brief Is --debug-warnings given? */
     bool debugwarnings;
 
-    /** @brief Is --debug-fp given? */
-    bool debugFalsePositive;
+    /** @brief Is --dump given? */
+    bool dump;
 
     /** @brief Is --exception-handling given */
     bool exceptionHandling;
 
     /** @brief Inconclusive checks */
     bool inconclusive;
+
+    /** @brief Collect unmatched suppressions in one run.
+      * This delays the reporting until all files are checked.
+      * It is needed by checks that analyse the whole code base. */
+    bool jointSuppressionReport;
 
     /**
      * When this flag is false (default) then experimental
@@ -78,7 +87,7 @@ public:
     bool experimental;
 
     /** @brief Is --quiet given? */
-    bool _errorsOnly;
+    bool quiet;
 
     /** @brief Is --inline-suppr given? */
     bool _inlineSuppressions;
@@ -162,6 +171,13 @@ public:
      */
     std::string addEnabled(const std::string &str);
 
+    /**
+     * @brief Disables all severities, except from error.
+     */
+    void clearEnabled() {
+        _enabled.clear();
+    }
+
     enum Language {
         None, C, CPP
     };
@@ -198,16 +214,16 @@ public:
     class CPPCHECKLIB Rule {
     public:
         Rule()
-            : tokenlist("simple") // use simple tokenlist
-            , id("rule")          // default id
-            , severity("style") { // default severity
+            : tokenlist("simple")         // use simple tokenlist
+            , id("rule")                  // default id
+            , severity(Severity::style) { // default severity
         }
 
         std::string tokenlist;
         std::string pattern;
         std::string id;
-        std::string severity;
         std::string summary;
+        Severity::SeverityType severity;
     };
 
     /**

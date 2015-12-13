@@ -7,19 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2D190F271C03A7A600C18478 /* astutils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2D190F251C03A7A600C18478 /* astutils.cpp */; };
 		39E60EB91270DE3A00AC0D02 /* checkautovariables.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60E8D1270DE3A00AC0D02 /* checkautovariables.cpp */; };
 		39E60EBA1270DE3A00AC0D02 /* checkbufferoverrun.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60E8F1270DE3A00AC0D02 /* checkbufferoverrun.cpp */; };
 		39E60EBB1270DE3A00AC0D02 /* checkclass.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60E911270DE3A00AC0D02 /* checkclass.cpp */; };
 		39E60EBC1270DE3A00AC0D02 /* checkexceptionsafety.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60E931270DE3A00AC0D02 /* checkexceptionsafety.cpp */; };
 		39E60EBD1270DE3A00AC0D02 /* checkmemoryleak.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60E951270DE3A00AC0D02 /* checkmemoryleak.cpp */; };
-		39E60EBE1270DE3A00AC0D02 /* checkobsoletefunctions.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60E971270DE3A00AC0D02 /* checkobsoletefunctions.cpp */; };
 		39E60EBF1270DE3A00AC0D02 /* checkother.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60E991270DE3A00AC0D02 /* checkother.cpp */; };
 		39E60EC01270DE3A00AC0D02 /* checkpostfixoperator.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60E9B1270DE3A00AC0D02 /* checkpostfixoperator.cpp */; };
 		39E60EC11270DE3A00AC0D02 /* checkstl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60E9D1270DE3A00AC0D02 /* checkstl.cpp */; };
 		39E60EC21270DE3A00AC0D02 /* checkunusedfunctions.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60E9F1270DE3A00AC0D02 /* checkunusedfunctions.cpp */; };
 		39E60EC31270DE3A00AC0D02 /* cppcheck.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60EA11270DE3A00AC0D02 /* cppcheck.cpp */; };
 		39E60EC41270DE3A00AC0D02 /* errorlogger.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60EA31270DE3A00AC0D02 /* errorlogger.cpp */; };
-		39E60EC51270DE3A00AC0D02 /* executionpath.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60EA51270DE3A00AC0D02 /* executionpath.cpp */; };
 		39E60EC81270DE3A00AC0D02 /* mathlib.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60EAB1270DE3A00AC0D02 /* mathlib.cpp */; };
 		39E60EC91270DE3A00AC0D02 /* path.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60EAD1270DE3A00AC0D02 /* path.cpp */; };
 		39E60ECA1270DE3A00AC0D02 /* preprocessor.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60EAF1270DE3A00AC0D02 /* preprocessor.cpp */; };
@@ -35,13 +34,11 @@
 		F4043DB2177F08A800CD5A40 /* pathmatch.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DAF177F08A800CD5A40 /* pathmatch.cpp */; };
 		F4043DD7177F093300CD5A40 /* check64bit.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DB3177F093300CD5A40 /* check64bit.cpp */; };
 		F4043DD8177F093300CD5A40 /* checkassert.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DB5177F093300CD5A40 /* checkassert.cpp */; };
-		F4043DD9177F093300CD5A40 /* checkassignif.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DB7177F093300CD5A40 /* checkassignif.cpp */; };
 		F4043DDA177F093300CD5A40 /* checkbool.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DB9177F093300CD5A40 /* checkbool.cpp */; };
 		F4043DDB177F093300CD5A40 /* checkboost.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DBB177F093300CD5A40 /* checkboost.cpp */; };
 		F4043DDC177F093300CD5A40 /* checkinternal.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DBD177F093300CD5A40 /* checkinternal.cpp */; };
 		F4043DDD177F093300CD5A40 /* checkio.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DBF177F093300CD5A40 /* checkio.cpp */; };
 		F4043DDE177F093300CD5A40 /* checkleakautovar.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DC1177F093300CD5A40 /* checkleakautovar.cpp */; };
-		F4043DDF177F093300CD5A40 /* checknonreentrantfunctions.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DC3177F093300CD5A40 /* checknonreentrantfunctions.cpp */; };
 		F4043DE0177F093300CD5A40 /* checknullpointer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DC5177F093300CD5A40 /* checknullpointer.cpp */; };
 		F4043DE1177F093300CD5A40 /* checksizeof.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DC7177F093300CD5A40 /* checksizeof.cpp */; };
 		F4043DE2177F093300CD5A40 /* checkuninitvar.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DC9177F093300CD5A40 /* checkuninitvar.cpp */; };
@@ -51,6 +48,11 @@
 		F4043DE6177F093300CD5A40 /* templatesimplifier.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DD2177F093300CD5A40 /* templatesimplifier.cpp */; };
 		F4043DE7177F093300CD5A40 /* tokenlist.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DD4177F093300CD5A40 /* tokenlist.cpp */; };
 		F47E508317896AEB00C684DC /* tinyxml2.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F47E508117896AEB00C684DC /* tinyxml2.cpp */; };
+		F497C28C1AB41D5C003B96CF /* check.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F497C2831AB41D5C003B96CF /* check.cpp */; };
+		F497C28D1AB41D5C003B96CF /* checkcondition.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F497C2841AB41D5C003B96CF /* checkcondition.cpp */; };
+		F497C28E1AB41D5C003B96CF /* checkstring.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F497C2861AB41D5C003B96CF /* checkstring.cpp */; };
+		F497C28F1AB41D5C003B96CF /* checktype.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F497C2881AB41D5C003B96CF /* checktype.cpp */; };
+		F497C2901AB41D5C003B96CF /* checkvaarg.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F497C2891AB41D5C003B96CF /* checkvaarg.cpp */; };
 		F4C348661825679E00521683 /* cmdlineparser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60ECF1270DE5000AC0D02 /* cmdlineparser.cpp */; };
 		F4C348671825679F00521683 /* cppcheckexecutor.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60ED11270DE5000AC0D02 /* cppcheckexecutor.cpp */; };
 		F4C348681825679F00521683 /* filelister.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DAD177F08A800CD5A40 /* filelister.cpp */; };
@@ -81,7 +83,7 @@
 		F4C348821825692B00521683 /* testmemleak.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F45BDD9E17AB8511006C06AF /* testmemleak.cpp */; };
 		F4C348831825692B00521683 /* testnonreentrantfunctions.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F45BDD9F17AB8511006C06AF /* testnonreentrantfunctions.cpp */; };
 		F4C348841825692B00521683 /* testnullpointer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F45BDDA017AB8511006C06AF /* testnullpointer.cpp */; };
-		F4C348851825692B00521683 /* testobsoletefunctions.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F45BDDA117AB8511006C06AF /* testobsoletefunctions.cpp */; };
+		F4C348851825692B00521683 /* testobsolescentfunctions.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F45BDDA117AB8511006C06AF /* testobsolescentfunctions.cpp */; };
 		F4C348861825692B00521683 /* testoptions.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F45BDDA217AB8511006C06AF /* testoptions.cpp */; };
 		F4C348871825692B00521683 /* testother.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F45BDDA317AB8511006C06AF /* testother.cpp */; };
 		F4C348881825692B00521683 /* testpath.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F45BDDA417AB8511006C06AF /* testpath.cpp */; };
@@ -105,7 +107,6 @@
 		F4C3489A1825692B00521683 /* testunusedvar.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F45BDDB617AB8511006C06AF /* testunusedvar.cpp */; };
 		F4C3489B18256A4500521683 /* check64bit.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DB3177F093300CD5A40 /* check64bit.cpp */; };
 		F4C3489C18256A4500521683 /* checkassert.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DB5177F093300CD5A40 /* checkassert.cpp */; };
-		F4C3489D18256A4500521683 /* checkassignif.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DB7177F093300CD5A40 /* checkassignif.cpp */; };
 		F4C3489E18256A4500521683 /* checkautovariables.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60E8D1270DE3A00AC0D02 /* checkautovariables.cpp */; };
 		F4C3489F18256A4500521683 /* checkbool.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DB9177F093300CD5A40 /* checkbool.cpp */; };
 		F4C348A018256A4500521683 /* checkboost.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DBB177F093300CD5A40 /* checkboost.cpp */; };
@@ -116,9 +117,7 @@
 		F4C348A518256A4500521683 /* checkio.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DBF177F093300CD5A40 /* checkio.cpp */; };
 		F4C348A618256A4500521683 /* checkleakautovar.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DC1177F093300CD5A40 /* checkleakautovar.cpp */; };
 		F4C348A718256A4500521683 /* checkmemoryleak.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60E951270DE3A00AC0D02 /* checkmemoryleak.cpp */; };
-		F4C348A818256A4500521683 /* checknonreentrantfunctions.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DC3177F093300CD5A40 /* checknonreentrantfunctions.cpp */; };
 		F4C348A918256A4500521683 /* checknullpointer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DC5177F093300CD5A40 /* checknullpointer.cpp */; };
-		F4C348AA18256A4500521683 /* checkobsoletefunctions.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60E971270DE3A00AC0D02 /* checkobsoletefunctions.cpp */; };
 		F4C348AB18256A4500521683 /* checkother.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60E991270DE3A00AC0D02 /* checkother.cpp */; };
 		F4C348AC18256A4500521683 /* checkpostfixoperator.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60E9B1270DE3A00AC0D02 /* checkpostfixoperator.cpp */; };
 		F4C348AD18256A4500521683 /* checksizeof.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DC7177F093300CD5A40 /* checksizeof.cpp */; };
@@ -127,7 +126,6 @@
 		F4C348B018256A4500521683 /* checkunusedfunctions.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60E9F1270DE3A00AC0D02 /* checkunusedfunctions.cpp */; };
 		F4C348B118256A4500521683 /* checkunusedvar.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F4043DCB177F093300CD5A40 /* checkunusedvar.cpp */; };
 		F4C348B218256A4500521683 /* errorlogger.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60EA31270DE3A00AC0D02 /* errorlogger.cpp */; };
-		F4C348B318256A4500521683 /* executionpath.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60EA51270DE3A00AC0D02 /* executionpath.cpp */; };
 		F4C348B418256A4500521683 /* mathlib.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60EAB1270DE3A00AC0D02 /* mathlib.cpp */; };
 		F4C348B518256A4500521683 /* path.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60EAD1270DE3A00AC0D02 /* path.cpp */; };
 		F4C348B618256A4500521683 /* preprocessor.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 39E60EAF1270DE3A00AC0D02 /* preprocessor.cpp */; };
@@ -169,6 +167,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		2D190F241C03A67A00C18478 /* utils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = utils.h; path = lib/utils.h; sourceTree = "<group>"; };
+		2D190F251C03A7A600C18478 /* astutils.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = astutils.cpp; path = lib/astutils.cpp; sourceTree = "<group>"; };
+		2D190F261C03A7A600C18478 /* astutils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = astutils.h; path = lib/astutils.h; sourceTree = "<group>"; };
 		39E60E8C1270DE3A00AC0D02 /* check.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = check.h; path = lib/check.h; sourceTree = "<group>"; };
 		39E60E8D1270DE3A00AC0D02 /* checkautovariables.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checkautovariables.cpp; path = lib/checkautovariables.cpp; sourceTree = "<group>"; };
 		39E60E8E1270DE3A00AC0D02 /* checkautovariables.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = checkautovariables.h; path = lib/checkautovariables.h; sourceTree = "<group>"; };
@@ -180,8 +181,6 @@
 		39E60E941270DE3A00AC0D02 /* checkexceptionsafety.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = checkexceptionsafety.h; path = lib/checkexceptionsafety.h; sourceTree = "<group>"; };
 		39E60E951270DE3A00AC0D02 /* checkmemoryleak.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checkmemoryleak.cpp; path = lib/checkmemoryleak.cpp; sourceTree = "<group>"; };
 		39E60E961270DE3A00AC0D02 /* checkmemoryleak.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = checkmemoryleak.h; path = lib/checkmemoryleak.h; sourceTree = "<group>"; };
-		39E60E971270DE3A00AC0D02 /* checkobsoletefunctions.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checkobsoletefunctions.cpp; path = lib/checkobsoletefunctions.cpp; sourceTree = "<group>"; };
-		39E60E981270DE3A00AC0D02 /* checkobsoletefunctions.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = checkobsoletefunctions.h; path = lib/checkobsoletefunctions.h; sourceTree = "<group>"; };
 		39E60E991270DE3A00AC0D02 /* checkother.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checkother.cpp; path = lib/checkother.cpp; sourceTree = "<group>"; };
 		39E60E9A1270DE3A00AC0D02 /* checkother.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = checkother.h; path = lib/checkother.h; sourceTree = "<group>"; };
 		39E60E9B1270DE3A00AC0D02 /* checkpostfixoperator.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checkpostfixoperator.cpp; path = lib/checkpostfixoperator.cpp; sourceTree = "<group>"; };
@@ -194,8 +193,6 @@
 		39E60EA21270DE3A00AC0D02 /* cppcheck.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = cppcheck.h; path = lib/cppcheck.h; sourceTree = "<group>"; };
 		39E60EA31270DE3A00AC0D02 /* errorlogger.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = errorlogger.cpp; path = lib/errorlogger.cpp; sourceTree = "<group>"; };
 		39E60EA41270DE3A00AC0D02 /* errorlogger.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = errorlogger.h; path = lib/errorlogger.h; sourceTree = "<group>"; };
-		39E60EA51270DE3A00AC0D02 /* executionpath.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = executionpath.cpp; path = lib/executionpath.cpp; sourceTree = "<group>"; };
-		39E60EA61270DE3A00AC0D02 /* executionpath.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = executionpath.h; path = lib/executionpath.h; sourceTree = "<group>"; };
 		39E60EAB1270DE3A00AC0D02 /* mathlib.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mathlib.cpp; path = lib/mathlib.cpp; sourceTree = "<group>"; };
 		39E60EAC1270DE3A00AC0D02 /* mathlib.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = mathlib.h; path = lib/mathlib.h; sourceTree = "<group>"; };
 		39E60EAD1270DE3A00AC0D02 /* path.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = path.cpp; path = lib/path.cpp; sourceTree = "<group>"; };
@@ -226,8 +223,6 @@
 		F4043DB4177F093300CD5A40 /* check64bit.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = check64bit.h; path = lib/check64bit.h; sourceTree = "<group>"; };
 		F4043DB5177F093300CD5A40 /* checkassert.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checkassert.cpp; path = lib/checkassert.cpp; sourceTree = "<group>"; };
 		F4043DB6177F093300CD5A40 /* checkassert.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = checkassert.h; path = lib/checkassert.h; sourceTree = "<group>"; };
-		F4043DB7177F093300CD5A40 /* checkassignif.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checkassignif.cpp; path = lib/checkassignif.cpp; sourceTree = "<group>"; };
-		F4043DB8177F093300CD5A40 /* checkassignif.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = checkassignif.h; path = lib/checkassignif.h; sourceTree = "<group>"; };
 		F4043DB9177F093300CD5A40 /* checkbool.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checkbool.cpp; path = lib/checkbool.cpp; sourceTree = "<group>"; };
 		F4043DBA177F093300CD5A40 /* checkbool.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = checkbool.h; path = lib/checkbool.h; sourceTree = "<group>"; };
 		F4043DBB177F093300CD5A40 /* checkboost.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checkboost.cpp; path = lib/checkboost.cpp; sourceTree = "<group>"; };
@@ -238,8 +233,6 @@
 		F4043DC0177F093300CD5A40 /* checkio.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = checkio.h; path = lib/checkio.h; sourceTree = "<group>"; };
 		F4043DC1177F093300CD5A40 /* checkleakautovar.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checkleakautovar.cpp; path = lib/checkleakautovar.cpp; sourceTree = "<group>"; };
 		F4043DC2177F093300CD5A40 /* checkleakautovar.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = checkleakautovar.h; path = lib/checkleakautovar.h; sourceTree = "<group>"; };
-		F4043DC3177F093300CD5A40 /* checknonreentrantfunctions.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checknonreentrantfunctions.cpp; path = lib/checknonreentrantfunctions.cpp; sourceTree = "<group>"; };
-		F4043DC4177F093300CD5A40 /* checknonreentrantfunctions.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = checknonreentrantfunctions.h; path = lib/checknonreentrantfunctions.h; sourceTree = "<group>"; };
 		F4043DC5177F093300CD5A40 /* checknullpointer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checknullpointer.cpp; path = lib/checknullpointer.cpp; sourceTree = "<group>"; };
 		F4043DC6177F093300CD5A40 /* checknullpointer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = checknullpointer.h; path = lib/checknullpointer.h; sourceTree = "<group>"; };
 		F4043DC7177F093300CD5A40 /* checksizeof.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checksizeof.cpp; path = lib/checksizeof.cpp; sourceTree = "<group>"; };
@@ -287,7 +280,7 @@
 		F45BDD9E17AB8511006C06AF /* testmemleak.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = testmemleak.cpp; path = test/testmemleak.cpp; sourceTree = "<group>"; };
 		F45BDD9F17AB8511006C06AF /* testnonreentrantfunctions.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = testnonreentrantfunctions.cpp; path = test/testnonreentrantfunctions.cpp; sourceTree = "<group>"; };
 		F45BDDA017AB8511006C06AF /* testnullpointer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = testnullpointer.cpp; path = test/testnullpointer.cpp; sourceTree = "<group>"; };
-		F45BDDA117AB8511006C06AF /* testobsoletefunctions.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = testobsoletefunctions.cpp; path = test/testobsoletefunctions.cpp; sourceTree = "<group>"; };
+		F45BDDA117AB8511006C06AF /* testobsolescentfunctions.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = testobsolescentfunctions.cpp; path = test/testobsolescentfunctions.cpp; sourceTree = "<group>"; };
 		F45BDDA217AB8511006C06AF /* testoptions.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = testoptions.cpp; path = test/testoptions.cpp; sourceTree = "<group>"; };
 		F45BDDA317AB8511006C06AF /* testother.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = testother.cpp; path = test/testother.cpp; sourceTree = "<group>"; };
 		F45BDDA417AB8511006C06AF /* testpath.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = testpath.cpp; path = test/testpath.cpp; sourceTree = "<group>"; };
@@ -311,6 +304,15 @@
 		F45BDDB617AB8511006C06AF /* testunusedvar.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = testunusedvar.cpp; path = test/testunusedvar.cpp; sourceTree = "<group>"; };
 		F47E508117896AEB00C684DC /* tinyxml2.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = tinyxml2.cpp; path = externals/tinyxml/tinyxml2.cpp; sourceTree = "<group>"; };
 		F47E508217896AEB00C684DC /* tinyxml2.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = tinyxml2.h; path = externals/tinyxml/tinyxml2.h; sourceTree = "<group>"; };
+		F497C2831AB41D5C003B96CF /* check.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = check.cpp; path = lib/check.cpp; sourceTree = "<group>"; };
+		F497C2841AB41D5C003B96CF /* checkcondition.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checkcondition.cpp; path = lib/checkcondition.cpp; sourceTree = "<group>"; };
+		F497C2851AB41D5C003B96CF /* checkcondition.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = checkcondition.h; path = lib/checkcondition.h; sourceTree = "<group>"; };
+		F497C2861AB41D5C003B96CF /* checkstring.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checkstring.cpp; path = lib/checkstring.cpp; sourceTree = "<group>"; };
+		F497C2871AB41D5C003B96CF /* checkstring.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = checkstring.h; path = lib/checkstring.h; sourceTree = "<group>"; };
+		F497C2881AB41D5C003B96CF /* checktype.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checktype.cpp; path = lib/checktype.cpp; sourceTree = "<group>"; };
+		F497C2891AB41D5C003B96CF /* checkvaarg.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = checkvaarg.cpp; path = lib/checkvaarg.cpp; sourceTree = "<group>"; };
+		F497C28A1AB41D5C003B96CF /* checkvaarg.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = checkvaarg.h; path = lib/checkvaarg.h; sourceTree = "<group>"; };
+		F497C28B1AB41D5C003B96CF /* cxx11emu.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = cxx11emu.h; path = lib/cxx11emu.h; sourceTree = "<group>"; };
 		F4C34860182566E800521683 /* testrunner */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = testrunner; sourceTree = BUILT_PRODUCTS_DIR; };
 		F4CDD6961880888F006CF685 /* valueflow.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = valueflow.cpp; path = lib/valueflow.cpp; sourceTree = "<group>"; };
 		F4CDD6971880888F006CF685 /* valueflow.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = valueflow.h; path = lib/valueflow.h; sourceTree = "<group>"; };
@@ -375,6 +377,7 @@
 				39E60ECF1270DE5000AC0D02 /* cmdlineparser.cpp */,
 				39E60ED01270DE5000AC0D02 /* cmdlineparser.h */,
 				39E60ED11270DE5000AC0D02 /* cppcheckexecutor.cpp */,
+				2D190F241C03A67A00C18478 /* utils.h */,
 				39E60ED21270DE5000AC0D02 /* cppcheckexecutor.h */,
 				F4043DAD177F08A800CD5A40 /* filelister.cpp */,
 				F4043DAE177F08A800CD5A40 /* filelister.h */,
@@ -390,6 +393,17 @@
 		2C21A45D1178BB0B00D35009 /* Library */ = {
 			isa = PBXGroup;
 			children = (
+				2D190F251C03A7A600C18478 /* astutils.cpp */,
+				2D190F261C03A7A600C18478 /* astutils.h */,
+				F497C2831AB41D5C003B96CF /* check.cpp */,
+				F497C2841AB41D5C003B96CF /* checkcondition.cpp */,
+				F497C2851AB41D5C003B96CF /* checkcondition.h */,
+				F497C2861AB41D5C003B96CF /* checkstring.cpp */,
+				F497C2871AB41D5C003B96CF /* checkstring.h */,
+				F497C2881AB41D5C003B96CF /* checktype.cpp */,
+				F497C2891AB41D5C003B96CF /* checkvaarg.cpp */,
+				F497C28A1AB41D5C003B96CF /* checkvaarg.h */,
+				F497C28B1AB41D5C003B96CF /* cxx11emu.h */,
 				F4CDD6961880888F006CF685 /* valueflow.cpp */,
 				F4CDD6971880888F006CF685 /* valueflow.h */,
 				F4CF847A17B6504000522F24 /* config.h */,
@@ -400,8 +414,6 @@
 				F4043DB4177F093300CD5A40 /* check64bit.h */,
 				F4043DB5177F093300CD5A40 /* checkassert.cpp */,
 				F4043DB6177F093300CD5A40 /* checkassert.h */,
-				F4043DB7177F093300CD5A40 /* checkassignif.cpp */,
-				F4043DB8177F093300CD5A40 /* checkassignif.h */,
 				39E60E8D1270DE3A00AC0D02 /* checkautovariables.cpp */,
 				39E60E8E1270DE3A00AC0D02 /* checkautovariables.h */,
 				F4043DB9177F093300CD5A40 /* checkbool.cpp */,
@@ -422,12 +434,8 @@
 				F4043DC2177F093300CD5A40 /* checkleakautovar.h */,
 				39E60E951270DE3A00AC0D02 /* checkmemoryleak.cpp */,
 				39E60E961270DE3A00AC0D02 /* checkmemoryleak.h */,
-				F4043DC3177F093300CD5A40 /* checknonreentrantfunctions.cpp */,
-				F4043DC4177F093300CD5A40 /* checknonreentrantfunctions.h */,
 				F4043DC5177F093300CD5A40 /* checknullpointer.cpp */,
 				F4043DC6177F093300CD5A40 /* checknullpointer.h */,
-				39E60E971270DE3A00AC0D02 /* checkobsoletefunctions.cpp */,
-				39E60E981270DE3A00AC0D02 /* checkobsoletefunctions.h */,
 				39E60E991270DE3A00AC0D02 /* checkother.cpp */,
 				39E60E9A1270DE3A00AC0D02 /* checkother.h */,
 				39E60E9B1270DE3A00AC0D02 /* checkpostfixoperator.cpp */,
@@ -446,8 +454,6 @@
 				39E60EA21270DE3A00AC0D02 /* cppcheck.h */,
 				39E60EA31270DE3A00AC0D02 /* errorlogger.cpp */,
 				39E60EA41270DE3A00AC0D02 /* errorlogger.h */,
-				39E60EA51270DE3A00AC0D02 /* executionpath.cpp */,
-				39E60EA61270DE3A00AC0D02 /* executionpath.h */,
 				39E60EAB1270DE3A00AC0D02 /* mathlib.cpp */,
 				39E60EAC1270DE3A00AC0D02 /* mathlib.h */,
 				39E60EAD1270DE3A00AC0D02 /* path.cpp */,
@@ -515,7 +521,7 @@
 				F45BDD9E17AB8511006C06AF /* testmemleak.cpp */,
 				F45BDD9F17AB8511006C06AF /* testnonreentrantfunctions.cpp */,
 				F45BDDA017AB8511006C06AF /* testnullpointer.cpp */,
-				F45BDDA117AB8511006C06AF /* testobsoletefunctions.cpp */,
+				F45BDDA117AB8511006C06AF /* testobsolescentfunctions.cpp */,
 				F45BDDA217AB8511006C06AF /* testoptions.cpp */,
 				F45BDDA317AB8511006C06AF /* testother.cpp */,
 				F45BDDA417AB8511006C06AF /* testpath.cpp */,
@@ -616,7 +622,7 @@
 		08FB7793FE84155DC02AAC07 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0460;
+				LastUpgradeCheck = 0620;
 			};
 			buildConfigurationList = 1DEB923508733DC60010E9CD /* Build configuration list for PBXProject "Cppcheck" */;
 			compatibilityVersion = "Xcode 3.2";
@@ -648,15 +654,17 @@
 				39E60EBB1270DE3A00AC0D02 /* checkclass.cpp in Sources */,
 				F4CDD6981880888F006CF685 /* valueflow.cpp in Sources */,
 				39E60EBC1270DE3A00AC0D02 /* checkexceptionsafety.cpp in Sources */,
+				F497C28E1AB41D5C003B96CF /* checkstring.cpp in Sources */,
+				2D190F271C03A7A600C18478 /* astutils.cpp in Sources */,
 				39E60EBD1270DE3A00AC0D02 /* checkmemoryleak.cpp in Sources */,
-				39E60EBE1270DE3A00AC0D02 /* checkobsoletefunctions.cpp in Sources */,
 				39E60EBF1270DE3A00AC0D02 /* checkother.cpp in Sources */,
 				39E60EC01270DE3A00AC0D02 /* checkpostfixoperator.cpp in Sources */,
 				39E60EC11270DE3A00AC0D02 /* checkstl.cpp in Sources */,
 				39E60EC21270DE3A00AC0D02 /* checkunusedfunctions.cpp in Sources */,
 				39E60EC31270DE3A00AC0D02 /* cppcheck.cpp in Sources */,
 				39E60EC41270DE3A00AC0D02 /* errorlogger.cpp in Sources */,
-				39E60EC51270DE3A00AC0D02 /* executionpath.cpp in Sources */,
+				F497C28C1AB41D5C003B96CF /* check.cpp in Sources */,
+				F497C28D1AB41D5C003B96CF /* checkcondition.cpp in Sources */,
 				39E60EC81270DE3A00AC0D02 /* mathlib.cpp in Sources */,
 				39E60EC91270DE3A00AC0D02 /* path.cpp in Sources */,
 				39E60ECA1270DE3A00AC0D02 /* preprocessor.cpp in Sources */,
@@ -672,19 +680,19 @@
 				F4043DB2177F08A800CD5A40 /* pathmatch.cpp in Sources */,
 				F4043DD7177F093300CD5A40 /* check64bit.cpp in Sources */,
 				F4043DD8177F093300CD5A40 /* checkassert.cpp in Sources */,
-				F4043DD9177F093300CD5A40 /* checkassignif.cpp in Sources */,
+				F497C2901AB41D5C003B96CF /* checkvaarg.cpp in Sources */,
 				F4043DDA177F093300CD5A40 /* checkbool.cpp in Sources */,
 				F4043DDB177F093300CD5A40 /* checkboost.cpp in Sources */,
 				F4043DDC177F093300CD5A40 /* checkinternal.cpp in Sources */,
 				F4043DDD177F093300CD5A40 /* checkio.cpp in Sources */,
 				F4043DDE177F093300CD5A40 /* checkleakautovar.cpp in Sources */,
-				F4043DDF177F093300CD5A40 /* checknonreentrantfunctions.cpp in Sources */,
 				F4043DE0177F093300CD5A40 /* checknullpointer.cpp in Sources */,
 				F4043DE1177F093300CD5A40 /* checksizeof.cpp in Sources */,
 				F4043DE2177F093300CD5A40 /* checkuninitvar.cpp in Sources */,
 				F4043DE3177F093300CD5A40 /* checkunusedvar.cpp in Sources */,
 				F4043DE4177F093300CD5A40 /* suppressions.cpp in Sources */,
 				F4043DE5177F093300CD5A40 /* symboldatabase.cpp in Sources */,
+				F497C28F1AB41D5C003B96CF /* checktype.cpp in Sources */,
 				F4043DE6177F093300CD5A40 /* templatesimplifier.cpp in Sources */,
 				F4043DE7177F093300CD5A40 /* tokenlist.cpp in Sources */,
 				F47E508317896AEB00C684DC /* tinyxml2.cpp in Sources */,
@@ -702,7 +710,6 @@
 				F4C348C018256A8700521683 /* library.cpp in Sources */,
 				F4C3489B18256A4500521683 /* check64bit.cpp in Sources */,
 				F4C3489C18256A4500521683 /* checkassert.cpp in Sources */,
-				F4C3489D18256A4500521683 /* checkassignif.cpp in Sources */,
 				F4C3489E18256A4500521683 /* checkautovariables.cpp in Sources */,
 				F4C3489F18256A4500521683 /* checkbool.cpp in Sources */,
 				F4C348A018256A4500521683 /* checkboost.cpp in Sources */,
@@ -713,9 +720,7 @@
 				F4C348A518256A4500521683 /* checkio.cpp in Sources */,
 				F4C348A618256A4500521683 /* checkleakautovar.cpp in Sources */,
 				F4C348A718256A4500521683 /* checkmemoryleak.cpp in Sources */,
-				F4C348A818256A4500521683 /* checknonreentrantfunctions.cpp in Sources */,
 				F4C348A918256A4500521683 /* checknullpointer.cpp in Sources */,
-				F4C348AA18256A4500521683 /* checkobsoletefunctions.cpp in Sources */,
 				F4C348AB18256A4500521683 /* checkother.cpp in Sources */,
 				F4C348AC18256A4500521683 /* checkpostfixoperator.cpp in Sources */,
 				F4C348AD18256A4500521683 /* checksizeof.cpp in Sources */,
@@ -724,7 +729,6 @@
 				F4C348B018256A4500521683 /* checkunusedfunctions.cpp in Sources */,
 				F4C348B118256A4500521683 /* checkunusedvar.cpp in Sources */,
 				F4C348B218256A4500521683 /* errorlogger.cpp in Sources */,
-				F4C348B318256A4500521683 /* executionpath.cpp in Sources */,
 				F4C348B418256A4500521683 /* mathlib.cpp in Sources */,
 				F4C348B518256A4500521683 /* path.cpp in Sources */,
 				F4C348B618256A4500521683 /* preprocessor.cpp in Sources */,
@@ -761,7 +765,7 @@
 				F4C348821825692B00521683 /* testmemleak.cpp in Sources */,
 				F4C348831825692B00521683 /* testnonreentrantfunctions.cpp in Sources */,
 				F4C348841825692B00521683 /* testnullpointer.cpp in Sources */,
-				F4C348851825692B00521683 /* testobsoletefunctions.cpp in Sources */,
+				F4C348851825692B00521683 /* testobsolescentfunctions.cpp in Sources */,
 				F4C348861825692B00521683 /* testoptions.cpp in Sources */,
 				F4C348871825692B00521683 /* testother.cpp in Sources */,
 				F4C348881825692B00521683 /* testpath.cpp in Sources */,
@@ -827,10 +831,10 @@
 		1DEB923608733DC60010E9CD /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_VERSION = 4.0;
+				GCC_VERSION = "";
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -841,7 +845,7 @@
 		1DEB923708733DC60010E9CD /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;

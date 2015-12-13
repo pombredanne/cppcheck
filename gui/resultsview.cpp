@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,11 @@
 #include <QVariant>
 #include <QString>
 #include <QModelIndex>
+#include <QPrinter>
+#include <QPrintDialog>
+#include <QPrintPreviewDialog>
 #include <QSettings>
+#include <QDir>
 #include "common.h"
 #include "erroritem.h"
 #include "resultsview.h"
@@ -32,6 +36,7 @@
 #include "xmlreportv1.h"
 #include "xmlreportv2.h"
 #include "csvreport.h"
+#include "printablereport.h"
 #include "applicationlist.h"
 #include "checkstatistics.h"
 
@@ -178,13 +183,49 @@ void ResultsView::Save(const QString &filename, Report::Type type) const
     }
 }
 
+void ResultsView::Print()
+{
+    QPrinter printer;
+    QPrintDialog dialog(&printer, this);
+    dialog.setWindowTitle(tr("Print Report"));
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    Print(&printer);
+}
+
+void ResultsView::PrintPreview()
+{
+    QPrinter printer;
+    QPrintPreviewDialog dialog(&printer, this);
+    connect(&dialog, SIGNAL(paintRequested(QPrinter*)), SLOT(Print(QPrinter*)));
+    dialog.exec();
+}
+
+void ResultsView::Print(QPrinter* printer)
+{
+    if (!mErrorsFound) {
+        QMessageBox msgBox;
+        msgBox.setText(tr("No errors found, nothing to print."));
+        msgBox.setIcon(QMessageBox::Critical);
+        msgBox.exec();
+        return;
+    }
+
+    PrintableReport report;
+    mUI.mTree->SaveResults(&report);
+    QTextDocument doc(report.GetFormattedReportText());
+    doc.print(printer);
+}
+
 void ResultsView::UpdateSettings(bool showFullPath,
                                  bool saveFullPath,
                                  bool saveAllErrors,
                                  bool showNoErrorsMessage,
-                                 bool showErrorId)
+                                 bool showErrorId,
+                                 bool showInconclusive)
 {
-    mUI.mTree->UpdateSettings(showFullPath, saveFullPath, saveAllErrors, showErrorId);
+    mUI.mTree->UpdateSettings(showFullPath, saveFullPath, saveAllErrors, showErrorId, showInconclusive);
     mShowNoErrorsMessage = showNoErrorsMessage;
 }
 
@@ -330,6 +371,11 @@ void ResultsView::UpdateDetails(const QModelIndex &index)
     QString formattedMsg = QString("%1: %2\n%3: %4")
                            .arg(tr("Summary")).arg(summary)
                            .arg(tr("Message")).arg(message);
+
+    const QString file0 = data["file0"].toString();
+    if (file0 != "" && file0 != data["file"].toString())
+        formattedMsg += QString("\n\n%1: %2").arg(tr("First included by")).arg(QDir::toNativeSeparators(file0));
+
     if (mUI.mTree->ShowIdColumn())
         formattedMsg.prepend(tr("Id") + ": " + data["id"].toString() + "\n");
     mUI.mDetails->setText(formattedMsg);

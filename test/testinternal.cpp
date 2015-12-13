@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,14 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef NDEBUG
+#ifdef CHECK_INTERNAL
 
 #include "tokenize.h"
 #include "checkinternal.h"
 #include "testsuite.h"
-#include <sstream>
 
-extern std::ostringstream errout;
 
 class TestInternal : public TestFixture {
 public:
@@ -31,7 +29,11 @@ public:
     }
 
 private:
+    Settings settings;
+
     void run() {
+        settings.addEnabled("internal");
+
         TEST_CASE(simplePatternInTokenMatch)
         TEST_CASE(complexPatternInTokenSimpleMatch)
         TEST_CASE(simplePatternSquareBrackets)
@@ -39,16 +41,14 @@ private:
         TEST_CASE(missingPercentCharacter)
         TEST_CASE(unknownPattern)
         TEST_CASE(redundantNextPrevious)
-        TEST_CASE(internalError)
-        TEST_CASE(invalidMultiCompare);
+        TEST_CASE(internalError);
+        TEST_CASE(orInComplexPattern);
+        TEST_CASE(extraWhitespace);
     }
 
     void check(const char code[]) {
         // Clear the error buffer..
         errout.str("");
-
-        Settings settings;
-        settings.addEnabled("internal");
 
         // Tokenize..
         Tokenizer tokenizer(&settings, this);
@@ -73,6 +73,12 @@ private:
               "    Token::Match(tok, \"%type%\");\n"
               "}");
         ASSERT_EQUALS("", errout.str());
+
+        check("void f() {\n"
+              "    const Token *tok;\n"
+              "    Token::Match(tok, \"%or%\");\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:3]: (warning) Found simple pattern inside Token::Match() call: \"%or%\"\n", errout.str());
 
         check("void f() {\n"
               "    const Token *tok;\n"
@@ -103,6 +109,12 @@ private:
         check("void f() {\n"
               "    const Token *tok;\n"
               "    Token::findsimplematch(tok, \"foobar\");\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
+
+        check("void f() {\n"
+              "    const Token *tok;\n"
+              "    Token::findsimplematch(tok, \"%\");\n"
               "}");
         ASSERT_EQUALS("", errout.str());
     }
@@ -223,8 +235,7 @@ private:
               "    const Token *tok;\n"
               "    Token::Match(tok, \"foo|%type|bar\");\n"
               "}");
-        ASSERT_EQUALS("[test.cpp:3]: (error) Bad multicompare pattern (a %cmd% must be first unless it is %or%,%op%,%cop%,%var%,%oror%) inside Token::Match() call: \"foo|%type|bar\"\n"
-                      "[test.cpp:3]: (error) Missing percent end character in Token::Match() pattern: \"foo|%type|bar\"\n"
+        ASSERT_EQUALS("[test.cpp:3]: (error) Missing percent end character in Token::Match() pattern: \"foo|%type|bar\"\n"
                       , errout.str());
 
         // Make sure we don't take %or% for a broken %oror%
@@ -316,28 +327,83 @@ private:
         ASSERT_EQUALS("", errout.str());
     }
 
-    void invalidMultiCompare() {
-        // #5310
+    void orInComplexPattern() {
         check("void f() {\n"
-              "    const Token *tok;\n"
-              "    Token::Match(tok, \";|%type%\");\n"
+              "    Token::Match(tok, \"||\");\n"
               "}");
-        ASSERT_EQUALS("[test.cpp:3]: (error) Bad multicompare pattern (a %cmd% must be first unless it is %or%,%op%,%cop%,%var%,%oror%) inside Token::Match() call: \";|%type%\"\n", errout.str());
+        ASSERT_EQUALS("[test.cpp:2]: (error) Token::Match() pattern \"||\" contains \"||\" or \"|\". Replace it by \"%oror%\" or \"%or%\".\n", errout.str());
 
         check("void f() {\n"
-              "    const Token *tok;\n"
-              "    Token::Match(tok, \";|%oror%\");\n"
+              "    Token::Match(tok, \"|\");\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:2]: (error) Token::Match() pattern \"|\" contains \"||\" or \"|\". Replace it by \"%oror%\" or \"%or%\".\n", errout.str());
+
+        check("void f() {\n"
+              "    Token::Match(tok, \"[|+-]\");\n"
               "}");
         ASSERT_EQUALS("", errout.str());
 
-        check("void f() {\n" // The %var%|%num% works..
-              "    const Token *tok;\n"
-              "    Token::Match(tok, \"%var%|%num%\");\n"
+        check("void f() {\n"
+              "    Token::Match(tok, \"foo | bar\");\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:2]: (error) Token::Match() pattern \"foo | bar\" contains \"||\" or \"|\". Replace it by \"%oror%\" or \"%or%\".\n", errout.str());
+
+        check("void f() {\n"
+              "    Token::Match(tok, \"foo |\");\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:2]: (error) Token::Match() pattern \"foo |\" contains \"||\" or \"|\". Replace it by \"%oror%\" or \"%or%\".\n", errout.str());
+
+        check("void f() {\n"
+              "    Token::Match(tok, \"bar foo|\");\n"
               "}");
         ASSERT_EQUALS("", errout.str());
+    }
+
+    void extraWhitespace() {
+        // whitespace at the end
+        check("void f() {\n"
+              "    const Token *tok;\n"
+              "    Token::Match(tok, \"%str% \");\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:3]: (warning) Found extra whitespace inside Token::Match() call: \"%str% \"\n", errout.str());
+
+        // whitespace at the begin
+        check("void f() {\n"
+              "    const Token *tok;\n"
+              "    Token::Match(tok, \" %str%\");\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:3]: (warning) Found extra whitespace inside Token::Match() call: \" %str%\"\n", errout.str());
+
+        // two whitespaces or more
+        check("void f() {\n"
+              "    const Token *tok;\n"
+              "    Token::Match(tok, \"%str%  bar\");\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:3]: (warning) Found extra whitespace inside Token::Match() call: \"%str%  bar\"\n", errout.str());
+
+        // test simpleMatch
+        check("void f() {\n"
+              "    const Token *tok;\n"
+              "    Token::simpleMatch(tok, \"foobar \");\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:3]: (warning) Found extra whitespace inside Token::simpleMatch() call: \"foobar \"\n", errout.str());
+
+        // test findmatch
+        check("void f() {\n"
+              "    const Token *tok;\n"
+              "    Token::findmatch(tok, \"%str% \");\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:3]: (warning) Found extra whitespace inside Token::findmatch() call: \"%str% \"\n", errout.str());
+
+        // test findsimplematch
+        check("void f() {\n"
+              "    const Token *tok;\n"
+              "    Token::findsimplematch(tok, \"foobar \");\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:3]: (warning) Found extra whitespace inside Token::findsimplematch() call: \"foobar \"\n", errout.str());
     }
 };
 
 REGISTER_TEST(TestInternal)
 
-#endif // #ifndef NDEBUG
+#endif // #ifdef CHECK_INTERNAL

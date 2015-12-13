@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,7 +35,7 @@ bool FileList::FilterMatches(const QFileInfo &inf)
         const QStringList filters = FileList::GetDefaultFilters();
         QString ext("*.");
         ext += inf.suffix();
-        if (filters.contains(ext))
+        if (filters.contains(ext, Qt::CaseInsensitive))
             return true;
     }
     return false;

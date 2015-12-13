@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,9 +22,9 @@
 #include "cppcheckexecutor.h"
 #include "threadexecutor.h"
 
-#include <sstream>
+#include <string>
+#include <map>
 
-extern std::ostringstream errout;
 
 class TestSuppressions : public TestFixture {
 public:
@@ -44,7 +44,10 @@ private:
         TEST_CASE(suppressionsPathSeparator);
 
         TEST_CASE(inlinesuppress_unusedFunction); // #4210 - unusedFunction
+        TEST_CASE(globalsuppress_unusedFunction); // #4946
         TEST_CASE(suppressionWithRelativePaths); // #4733
+        TEST_CASE(suppressingSyntaxErrors); // #7076
+        TEST_CASE(suppressingSyntaxErrorsInline); // #5917
     }
 
     void suppressionsBadId1() const {
@@ -114,8 +117,29 @@ private:
         ASSERT_EQUALS(true, suppressions.isSuppressed("errorid", "a.c", 123));
     }
 
+    void reportSuppressions(const Settings &settings, const std::map<std::string, std::string> &files) {
+        // make it verbose that this check is disabled
+        const bool unusedFunctionCheck = false;
+
+        if (settings.jointSuppressionReport) {
+            for (std::map<std::string, std::string>::const_iterator i = files.begin(); i != files.end(); ++i) {
+                reportUnmatchedSuppressions(settings.nomsg.getUnmatchedLocalSuppressions(i->first, unusedFunctionCheck));
+            }
+        }
+
+        reportUnmatchedSuppressions(settings.nomsg.getUnmatchedGlobalSuppressions(unusedFunctionCheck));
+    }
+
     // Check the suppression
-    void checkSuppression(const char code[], const std::string &suppression = "") {
+    void checkSuppression(const char code[], const std::string &suppression = emptyString) {
+        std::map<std::string, std::string> files;
+        files["test.cpp"] = code;
+
+        checkSuppression(files, suppression);
+    }
+
+    // Check the suppression for multiple files
+    void checkSuppression(std::map<std::string, std::string> &files, const std::string &suppression = emptyString) {
         // Clear the error log
         errout.str("");
 
@@ -123,17 +147,21 @@ private:
         Settings& settings = cppCheck.settings();
         settings._inlineSuppressions = true;
         settings.addEnabled("information");
+        settings.jointSuppressionReport = true;
         if (!suppression.empty()) {
             std::string r = settings.nomsg.addSuppressionLine(suppression);
             ASSERT_EQUALS("", r);
         }
 
-        cppCheck.check("test.cpp", code);
+        for (std::map<std::string, std::string>::const_iterator file = files.begin(); file != files.end(); ++file) {
+            cppCheck.check(file->first, file->second);
+        }
+        cppCheck.analyseWholeProgram();
 
-        reportUnmatchedSuppressions(settings.nomsg.getUnmatchedGlobalSuppressions());
+        reportSuppressions(settings, files);
     }
 
-    void checkSuppressionThreads(const char code[], const std::string &suppression = "") {
+    void checkSuppressionThreads(const char code[], const std::string &suppression = emptyString) {
         errout.str("");
         output.str("");
 
@@ -153,25 +181,11 @@ private:
 
         executor.check();
 
-        reportUnmatchedSuppressions(settings.nomsg.getUnmatchedGlobalSuppressions());
-    }
+        std::map<std::string, std::string> files_for_report;
+        for (std::map<std::string, std::size_t>::const_iterator file = files.begin(); file != files.end(); ++file)
+            files_for_report[file->first] = "";
 
-    // Check the suppression for multiple files
-    void checkSuppression(const char *names[], const char *codes[], const std::string &suppression = "") {
-        // Clear the error log
-        errout.str("");
-
-        CppCheck cppCheck(*this, true);
-        Settings& settings = cppCheck.settings();
-        settings._inlineSuppressions = true;
-        settings.addEnabled("information");
-        if (!suppression.empty())
-            settings.nomsg.addSuppressionLine(suppression);
-
-        for (int i = 0; names[i] != NULL; ++i)
-            cppCheck.check(names[i], codes[i]);
-
-        reportUnmatchedSuppressions(settings.nomsg.getUnmatchedGlobalSuppressions());
+        reportSuppressions(settings, files_for_report);
     }
 
     void runChecks(void (TestSuppressions::*check)(const char[], const std::string &)) {
@@ -285,6 +299,18 @@ private:
                        "");
         ASSERT_EQUALS("", errout.str());
 
+        // suppress uninitvar inline, with asm before (#6813)
+        (this->*check)("void f() {\n"
+                       "    __asm {\n"
+                       "        foo\n"
+                       "    }"
+                       "    int a;\n"
+                       "    // cppcheck-suppress uninitvar\n"
+                       "    a++;\n"
+                       "}",
+                       "");
+        ASSERT_EQUALS("", errout.str());
+
         // suppress uninitvar inline, without error present
         (this->*check)("void f() {\n"
                        "    int a;\n"
@@ -302,18 +328,16 @@ private:
     }
 
     void suppressionsMultiFile() {
-        const char *names[] = {"abc.cpp", "xyz.cpp", NULL};
-        const char *codes[] = {
-            "void f() {\n"
-            "}\n",
-            "void f() {\n"
-            "    int a;\n"
-            "    a++;\n"
-            "}\n",
-        };
+        std::map<std::string, std::string> files;
+        files["abc.cpp"] = "void f() {\n"
+                           "}\n";
+        files["xyz.cpp"] = "void f() {\n"
+                           "    int a;\n"
+                           "    a++;\n"
+                           "}\n";
 
         // suppress uninitvar for this file and line
-        checkSuppression(names, codes, "uninitvar:xyz.cpp:3");
+        checkSuppression(files, "uninitvar:xyz.cpp:3");
         ASSERT_EQUALS("", errout.str());
     }
 
@@ -323,14 +347,25 @@ private:
         ASSERT_EQUALS(true, suppressions.isSuppressed("someid", "test/foo/bar.cpp", 142));
     }
 
-    void inlinesuppress_unusedFunction() const { // #4210 - wrong report of "unmatchedSuppression" for "unusedFunction"
+    void inlinesuppress_unusedFunction() const { // #4210, #4946 - wrong report of "unmatchedSuppression" for "unusedFunction"
         Suppressions suppressions;
         suppressions.addSuppression("unusedFunction", "test.c", 3U);
-        ASSERT_EQUALS(true, suppressions.getUnmatchedLocalSuppressions("test.c").empty());
-        ASSERT_EQUALS(false, suppressions.getUnmatchedGlobalSuppressions().empty());
+        ASSERT_EQUALS(true, !suppressions.getUnmatchedLocalSuppressions("test.c", true).empty());
+        ASSERT_EQUALS(false, !suppressions.getUnmatchedGlobalSuppressions(true).empty());
+        ASSERT_EQUALS(false, !suppressions.getUnmatchedLocalSuppressions("test.c", false).empty());
+        ASSERT_EQUALS(false, !suppressions.getUnmatchedGlobalSuppressions(false).empty());
     }
 
-    void suppressionWithRelativePaths()  {
+    void globalsuppress_unusedFunction() const { // #4946 - wrong report of "unmatchedSuppression" for "unusedFunction"
+        Suppressions suppressions;
+        suppressions.addSuppressionLine("unusedFunction:*");
+        ASSERT_EQUALS(false, !suppressions.getUnmatchedLocalSuppressions("test.c", true).empty());
+        ASSERT_EQUALS(true, !suppressions.getUnmatchedGlobalSuppressions(true).empty());
+        ASSERT_EQUALS(false, !suppressions.getUnmatchedLocalSuppressions("test.c", false).empty());
+        ASSERT_EQUALS(false, !suppressions.getUnmatchedGlobalSuppressions(false).empty());
+    }
+
+    void suppressionWithRelativePaths() {
         // Clear the error log
         errout.str("");
 
@@ -350,6 +385,30 @@ private:
             "};";
         cppCheck.check("/somewhere/test.cpp", code);
         ASSERT_EQUALS("",errout.str());
+    }
+
+    void suppressingSyntaxErrors() { // syntaxErrors should be suppressable (#7076)
+        std::map<std::string, std::string> files;
+        files["test.cpp"] = "if if\n";
+
+        checkSuppression(files, "syntaxError:test.cpp:1");
+        ASSERT_EQUALS("", errout.str());
+    }
+
+    void suppressingSyntaxErrorsInline() { // syntaxErrors should be suppressable (#5917)
+        std::map<std::string, std::string> files;
+        files["test.cpp"] = "double result(0.0);\n"
+                            "_asm\n"
+                            "{\n"
+                            "   // cppcheck-suppress syntaxError\n"
+                            "   push  EAX               ; save EAX for callers \n"
+                            "   mov   EAX,Real10        ; get the address pointed to by Real10\n"
+                            "   fld   TBYTE PTR [EAX]   ; load an extended real (10 bytes)\n"
+                            "   fstp  QWORD PTR result  ; store a double (8 bytes)\n"
+                            "   pop   EAX               ; restore EAX\n"
+                            "}";
+        checkSuppression(files, "");
+        ASSERT_EQUALS("", errout.str());
     }
 };
 

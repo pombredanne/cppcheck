@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 
 #include "testsuite.h"
 #include "options.h"
+#include "redirect.h"
 
 #include <iostream>
 #include <list>
@@ -73,15 +74,19 @@ TestFixture::TestFixture(const std::string &_name)
 }
 
 
-bool TestFixture::runTest(const char testname[])
+bool TestFixture::prepareTest(const char testname[])
 {
+    // Check if tests should be executed
     if (testToRun.empty() || testToRun == testname) {
+        // Tests will be executed - prepare them
         ++countTests;
         if (quiet_tests) {
-            std::cout << '.';
+            std::putchar('.'); // Use putchar to write through redirection of std::cout/cerr
+            std::fflush(stdout);
         } else {
             std::cout << classname << "::" << testname << std::endl;
         }
+        currentTest = classname + "::" + testname;
         return true;
     }
     return false;
@@ -148,6 +153,18 @@ void TestFixture::assertEquals(const char *filename, unsigned int linenr, const 
             errmsg << "_____" << std::endl;
         }
     }
+}
+void TestFixture::assertEquals(const char *filename, unsigned int linenr, const char expected[], const std::string& actual, const std::string &msg) const
+{
+    assertEquals(filename, linenr, std::string(expected), actual, msg);
+}
+void TestFixture::assertEquals(const char *filename, unsigned int linenr, const char expected[], const char actual[], const std::string &msg) const
+{
+    assertEquals(filename, linenr, std::string(expected), std::string(actual), msg);
+}
+void TestFixture::assertEquals(const char *filename, unsigned int linenr, const std::string& expected, const char actual[], const std::string &msg) const
+{
+    assertEquals(filename, linenr, expected, std::string(actual), msg);
 }
 
 void TestFixture::assertEquals(const char *filename, unsigned int linenr, long long expected, long long actual, const std::string &msg) const
@@ -220,12 +237,11 @@ void TestFixture::run(const std::string &str)
     if (quiet_tests) {
         std::cout << '\n' << classname << ':';
     }
-    run();
-}
-
-void TestFixture::warn(const char msg[])
-{
-    warnings << "Warning: " << currentTest << " " << msg << std::endl;
+    if (quiet_tests) {
+        REDIRECT;
+        run();
+    } else
+        run();
 }
 
 void TestFixture::processOptions(const options& args)

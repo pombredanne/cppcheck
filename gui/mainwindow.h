@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -79,10 +79,16 @@ public slots:
     void CheckFiles();
 
     /**
-    * @brief Slot to recheck files
+    * @brief Slot to recheck all files
     *
     */
-    void ReCheck();
+    void ReCheckAll();
+
+    /**
+    * @brief Slot to recheck modified files
+    *
+    */
+    void ReCheckModified();
 
     /**
     * @brief Slot to clear all search results
@@ -220,6 +226,12 @@ public slots:
     */
     void ShowStatistics();
 
+    /**
+    * @brief Slot for showing the library editor
+    *
+    */
+    void ShowLibraryEditor();
+
 protected slots:
 
     /**
@@ -300,6 +312,12 @@ protected slots:
     void SelectPlatform();
 
 private:
+
+    /**
+    * @brief Rechecks files
+    *
+    */
+    void ReCheck(bool all);
 
     /**
       * @brief Check the project.
@@ -428,9 +446,17 @@ private:
      * @brief Load library file
      * @param library  library to use
      * @param filename filename (no path)
-     * @return True if successful
+     * @return error code
      */
-    bool LoadLibrary(Library *library, QString filename);
+    Library::Error LoadLibrary(Library *library, QString filename);
+
+    /**
+    * @brief Tries to load library file, prints message on error
+    * @param library  library to use
+    * @param filename filename (no path)
+    * @return True if no error
+    */
+    bool TryLoadLibrary(Library *library, QString filename);
 
     /**
     * @brief Update project MRU items in File-menu.
@@ -518,6 +544,11 @@ private:
     * @brief GUI actions for selecting the coding standard.
     */
     QActionGroup *mCStandardActions, *mCppStandardActions;
+
+    /**
+    * @brief GUI actions for selecting language.
+    */
+    QActionGroup *mSelectLanguageActions;
 
     /**
     * @brief Are we exiting the cppcheck?

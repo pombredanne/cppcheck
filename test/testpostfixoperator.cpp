@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,14 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include "tokenize.h"
 #include "checkpostfixoperator.h"
 #include "testsuite.h"
 
-#include <sstream>
-
-extern std::ostringstream errout;
 
 class TestPostfixOperator : public TestFixture {
 public:
@@ -31,16 +27,12 @@ public:
     }
 
 private:
-
+    Settings settings;
 
 
     void check(const char code[]) {
         // Clear the error buffer..
         errout.str("");
-
-        Settings settings;
-        settings.addEnabled("performance");
-        //settings.inconclusive = true;
 
         // Tokenize..
         Tokenizer tokenizer(&settings, this);
@@ -54,6 +46,8 @@ private:
     }
 
     void run() {
+        settings.addEnabled("performance");
+
         TEST_CASE(testsimple);
         TEST_CASE(testfor);
         TEST_CASE(testvolatile);

@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,14 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
-
 #include "tokenize.h"
 #include "checkclass.h"
 #include "testsuite.h"
-#include <sstream>
 
-extern std::ostringstream errout;
 
 class TestConstructors : public TestFixture {
 public:
@@ -31,16 +27,13 @@ public:
     }
 
 private:
-
+    Settings settings;
 
     void check(const char code[], bool showAll = false) {
         // Clear the error buffer..
         errout.str("");
 
-        Settings settings;
         settings.inconclusive = showAll;
-        settings.addEnabled("style");
-        settings.addEnabled("warning");
 
         // Tokenize..
         Tokenizer tokenizer(&settings, this);
@@ -54,6 +47,9 @@ private:
     }
 
     void run() {
+        settings.addEnabled("style");
+        settings.addEnabled("warning");
+
         TEST_CASE(simple1);
         TEST_CASE(simple2);
         TEST_CASE(simple3);
@@ -64,9 +60,23 @@ private:
         TEST_CASE(simple8);
         TEST_CASE(simple9); // ticket #4574
         TEST_CASE(simple10); // ticket #4388
-        TEST_CASE(simple11); // ticket #4536
+        TEST_CASE(simple11); // ticket #4536, #6214
         TEST_CASE(simple12); // ticket #4620
         TEST_CASE(simple13); // #5498 - no constructor, c++11 assignments
+        TEST_CASE(simple14); // #6253 template base
+
+        TEST_CASE(noConstructor1);
+        TEST_CASE(noConstructor2);
+        TEST_CASE(noConstructor3);
+        TEST_CASE(noConstructor4);
+        TEST_CASE(noConstructor5);
+        TEST_CASE(noConstructor6); // ticket #4386
+        TEST_CASE(noConstructor7); // ticket #4391
+        TEST_CASE(noConstructor8); // ticket #4404
+        TEST_CASE(noConstructor9); // ticket #4419
+        TEST_CASE(noConstructor10); // ticket #6614
+
+        TEST_CASE(forwardDeclaration); // ticket #4290/#3190
 
         TEST_CASE(initvar_with_this);       // BUG 2190300
         TEST_CASE(initvar_if);              // BUG 2190290
@@ -93,6 +103,8 @@ private:
 
         TEST_CASE(initvar_destructor);      // No variables need to be initialized in a destructor
         TEST_CASE(initvar_func_ret_func_ptr); // ticket #4449
+
+        TEST_CASE(initvar_alias); // #6921
 
         TEST_CASE(operatorEqSTL);
 
@@ -123,6 +135,9 @@ private:
         TEST_CASE(uninitVar25); // ticket #4789
         TEST_CASE(uninitVar26);
         TEST_CASE(uninitVar27); // ticket #5170 - rtl::math::setNan(&d)
+        TEST_CASE(uninitVar28); // ticket #6258
+        TEST_CASE(uninitVar29);
+        TEST_CASE(uninitVar30); // ticket #6417
         TEST_CASE(uninitVarEnum);
         TEST_CASE(uninitVarStream);
         TEST_CASE(uninitVarTypedef);
@@ -135,6 +150,7 @@ private:
         TEST_CASE(uninitVarArray6);
         TEST_CASE(uninitVarArray7);
         TEST_CASE(uninitVarArray8);
+        TEST_CASE(uninitVarArray9); // ticket #6957, #6959
         TEST_CASE(uninitVarArray2D);
         TEST_CASE(uninitVarArray3D);
         TEST_CASE(uninitVarCpp11Init1);
@@ -162,7 +178,8 @@ private:
         TEST_CASE(uninitVarOperatorEqual); // ticket #2415
         TEST_CASE(uninitVarPointer);       // ticket #3801
         TEST_CASE(uninitConstVar);
-        TEST_CASE(constructors_crash1);  // ticket #5641
+        TEST_CASE(constructors_crash1);    // ticket #5641
+        TEST_CASE(classWithOperatorInName);// ticket #2827
     }
 
 
@@ -364,14 +381,22 @@ private:
         ASSERT_EQUALS("", errout.str());
     }
 
-    void simple11() { // ticket #4536
+    void simple11() { // ticket #4536, #6214
         check("class Fred {\n"
               "public:\n"
               "    Fred() {}\n"
               "private:\n"
               "    int x = 0;\n"
+              "    int y = f();\n"
+              "    int z{0};\n"
+              "    int (*pf[2])(){nullptr, nullptr};\n"
+              "    int a[2][3] = {{1,2,3},{4,5,6}};\n"
+              "    int b{1}, c{2};\n"
+              "    int d, e{3};\n"
+              "    int f{4}, g;\n"
               "};");
-        ASSERT_EQUALS("", errout.str());
+        ASSERT_EQUALS("[test.cpp:3]: (warning) Member variable 'Fred::d' is not initialized in the constructor.\n"
+                      "[test.cpp:3]: (warning) Member variable 'Fred::g' is not initialized in the constructor.\n", errout.str());
     }
 
     void simple12() { // ticket #4620
@@ -400,6 +425,153 @@ private:
               "    int x=1;\n"
               "    int *y=0;\n"
               "};\n");
+        ASSERT_EQUALS("", errout.str());
+    }
+
+    void simple14() { // #6253 template base
+        check("class Fred : public Base<A, B> {"
+              "public:"
+              "    Fred()\n"
+              "    :Base<A, B>(1),\n"
+              "     x(1)\n"
+              "    {}\n"
+              "private:\n"
+              "    int x;\n"
+              "};\n");
+        ASSERT_EQUALS("", errout.str());
+
+        check("class Fred : public Base<A, B> {"
+              "public:"
+              "    Fred()\n"
+              "    :Base<A, B>{1},\n"
+              "     x{1}\n"
+              "    {}\n"
+              "private:\n"
+              "    int x;\n"
+              "};\n");
+        ASSERT_EQUALS("", errout.str());
+    }
+
+    void noConstructor1() {
+        // There are nonstatic member variables - constructor is needed
+        check("class Fred\n"
+              "{\n"
+              "    int i;\n"
+              "};");
+        ASSERT_EQUALS("[test.cpp:1]: (style) The class 'Fred' does not have a constructor.\n", errout.str());
+    }
+
+    void noConstructor2() {
+        check("class Fred\n"
+              "{\n"
+              "public:\n"
+              "    static void foobar();\n"
+              "};\n"
+              "\n"
+              "void Fred::foobar()\n"
+              "{ }");
+        ASSERT_EQUALS("", errout.str());
+    }
+
+    void noConstructor3() {
+        check("class Fred\n"
+              "{\n"
+              "private:\n"
+              "    static int foobar;\n"
+              "};");
+        ASSERT_EQUALS("", errout.str());
+    }
+
+    void noConstructor4() {
+        check("class Fred\n"
+              "{\n"
+              "public:\n"
+              "    int foobar;\n"
+              "};");
+        ASSERT_EQUALS("", errout.str());
+    }
+
+    void noConstructor5() {
+        check("namespace Foo\n"
+              "{\n"
+              "    int i;\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
+    }
+
+    void noConstructor6() {
+        // ticket #4386
+        check("class Ccpucycles {\n"
+              "    friend class foo::bar;\n"
+              "    Ccpucycles() :\n"
+              "    m_v(0), m_b(true)\n"
+              "    {}\n"
+              "private:\n"
+              "    cpucyclesT m_v;\n"
+              "    bool m_b;\n"
+              "};");
+        ASSERT_EQUALS("", errout.str());
+    }
+
+    void noConstructor7() {
+        // ticket #4391
+        check("short bar;\n"
+              "class foo;\n");
+        ASSERT_EQUALS("", errout.str());
+    }
+
+    void noConstructor8() {
+        // ticket #4404
+        check("class LineSegment;\n"
+              "class PointArray  { };\n"
+              "void* tech_ = NULL;\n");
+        ASSERT_EQUALS("", errout.str());
+    }
+
+    void noConstructor9() {
+        // ticket #4419
+        check("class CGreeting : public CGreetingBase<char> {\n"
+              "public:\n"
+              " CGreeting() : CGreetingBase<char>(), MessageSet(false) {}\n"
+              "private:\n"
+              " bool MessageSet;\n"
+              "};");
+        ASSERT_EQUALS("", errout.str());
+    }
+
+    void noConstructor10() {
+        // ticket #6614
+        check("class A : public wxDialog\n"
+              "{\n"
+              "private:\n"
+              "    DECLARE_EVENT_TABLE()\n"
+              "public:\n"
+              "    A(wxWindow *parent,\n"
+              "      wxWindowID id = 1,\n"
+              "      const wxString &title = wxT(""),\n"
+              "      const wxPoint& pos = wxDefaultPosition,\n"
+              "      const wxSize& size = wxDefaultSize,\n"
+              "      long style = wxDIALOG_NO_PARENT | wxMINIMIZE_BOX | wxMAXIMIZE_BOX | wxCLOSE_BOX);\n"
+              "    virtual ~A();\n"
+              "private:\n"
+              "    wxTimer *WxTimer1;\n"
+              "};\n");
+        ASSERT_EQUALS("", errout.str());
+    }
+
+    // ticket #4290 "False Positive: style (noConstructor): The class 'foo' does not have a constructor."
+    // ticket #3190 "SymbolDatabase: Parse of sub class constructor fails"
+    void forwardDeclaration() {
+        check("class foo;\n"
+              "int bar;\n");
+        ASSERT_EQUALS("", errout.str());
+
+        check("class foo;\n"
+              "class foo;\n");
+        ASSERT_EQUALS("", errout.str());
+
+        check("class foo{};\n"
+              "class foo;\n");
         ASSERT_EQUALS("", errout.str());
     }
 
@@ -876,6 +1048,16 @@ private:
               "    A() { number = 42; }\n"
               "};");
         ASSERT_EQUALS("", errout.str());
+
+        // Ticket #6675
+        check("struct Foo {\n"
+              "  Foo();\n"
+              "  Foo(int foo);\n"
+              "  int foo_;\n"
+              "};\n"
+              "Foo::Foo() : Foo(0) {}\n"
+              "Foo::Foo(int foo) : foo_(foo) {}\n");
+        ASSERT_EQUALS("", errout.str());
     }
 
 
@@ -1209,6 +1391,54 @@ private:
         ASSERT_EQUALS("", errout.str());
     }
 
+    void initvar_alias() { // #6921
+        check("struct S {\n"
+              "    int a;\n"
+              "    S() {\n"
+              "        int& pa = a;\n"
+              "        pa = 4;\n"
+              "    }\n"
+              "};");
+        ASSERT_EQUALS("", errout.str());
+
+        check("struct S {\n"
+              "    int a;\n"
+              "    S() {\n"
+              "        int* pa = &a;\n"
+              "        *pa = 4;\n"
+              "    }\n"
+              "};");
+        ASSERT_EQUALS("", errout.str());
+
+        check("struct S {\n"
+              "    int a[2];\n"
+              "    S() {\n"
+              "        int* pa = a;\n"
+              "        for (int i = 0; i < 2; i++)\n"
+              "            *pa++ = i;\n"
+              "    }\n"
+              "};");
+        ASSERT_EQUALS("", errout.str());
+
+        check("struct S {\n"
+              "    int* a[2];\n"
+              "    S() {\n"
+              "        int* pa = a[1];\n"
+              "        *pa = 0;\n"
+              "    }\n"
+              "};");
+        ASSERT_EQUALS("[test.cpp:3]: (warning) Member variable 'S::a' is not initialized in the constructor.\n", errout.str());
+
+        check("struct S {\n"
+              "    int a;\n"
+              "    S() {\n"
+              "        int pa = a;\n"
+              "        pa = 4;\n"
+              "    }\n"
+              "};");
+        ASSERT_EQUALS("[test.cpp:3]: (warning) Member variable 'S::a' is not initialized in the constructor.\n", errout.str());
+    }
+
     void operatorEqSTL() {
         check("class Fred\n"
               "{\n"
@@ -1341,6 +1571,15 @@ private:
               "{\n"
               "public:\n"
               "    explicit Foo(int i) : Bar(mi=i) { }\n"
+              "private:\n"
+              "    int mi;\n"
+              "};");
+        ASSERT_EQUALS("", errout.str());
+
+        check("class Foo : public Bar\n"
+              "{\n"
+              "public:\n"
+              "    explicit Foo(int i) : Bar{mi=i} { }\n"
               "private:\n"
               "    int mi;\n"
               "};");
@@ -1977,6 +2216,70 @@ private:
         ASSERT_EQUALS("", errout.str());
     }
 
+    void uninitVar28() {
+        check("class Fred {\n"
+              "    int i;\n"
+              "    float f;\n"
+              "public:\n"
+              "    Fred() {\n"
+              "        foo(1);\n"
+              "        foo(1.0f);\n"
+              "    }\n"
+              "    void foo(int a) { i = a; }\n"
+              "    void foo(float a) { f = a; }\n"
+              "};");
+        ASSERT_EQUALS("", errout.str());
+    }
+
+    void uninitVar29() {
+        check("class A {\n"
+              "    int i;\n"
+              "public:\n"
+              "    A() { foo(); }\n"
+              "    void foo() const { };\n"
+              "    void foo() { i = 0; }\n"
+              "};\n"
+              "class B {\n"
+              "    int i;\n"
+              "public:\n"
+              "    B() { foo(); }\n"
+              "    void foo() { i = 0; }\n"
+              "    void foo() const { }\n"
+              "};\n"
+              "class C {\n"
+              "    int i;\n"
+              "public:\n"
+              "    C() { foo(); }\n"
+              "    void foo() const { i = 0; }\n"
+              "    void foo() { }\n"
+              "};\n"
+              "class D {\n"
+              "    int i;\n"
+              "public:\n"
+              "    D() { foo(); }\n"
+              "	void foo() { }\n"
+              "	void foo() const { i = 0; }\n"
+              "};");
+        ASSERT_EQUALS("[test.cpp:18]: (warning) Member variable 'C::i' is not initialized in the constructor.\n"
+                      "[test.cpp:25]: (warning) Member variable 'D::i' is not initialized in the constructor.\n", errout.str());
+    }
+
+    void uninitVar30() { // ticket #6417
+        check("namespace NS {\n"
+              "    class MyClass {\n"
+              "    public:\n"
+              "        MyClass();\n"
+              "        ~MyClass();\n"
+              "    private:\n"
+              "        bool SomeVar;\n"
+              "    };\n"
+              "}\n"
+              "using namespace NS;\n"
+              "MyClass::~MyClass() { }\n"
+              "MyClass::MyClass() : SomeVar(false) { }\n");
+        ASSERT_EQUALS("", errout.str());
+    }
+
     void uninitVarArray1() {
         check("class John\n"
               "{\n"
@@ -2031,7 +2334,7 @@ private:
               "{\n"
               "public:\n"
               "    John() { }\n"
-              "    A *a[5];\n"
+              "    A (*a)[5];\n"
               "};");
         ASSERT_EQUALS("[test.cpp:5]: (warning) Member variable 'John::a' is not initialized in the constructor.\n", errout.str());
     }
@@ -2041,6 +2344,17 @@ private:
               "{\n"
               "public:\n"
               "    John() { *name = 0; }\n"
+              "\n"
+              "private:\n"
+              "    char name[255];\n"
+              "};");
+        ASSERT_EQUALS("", errout.str());
+
+        // #5754
+        check("class John\n"
+              "{\n"
+              "public:\n"
+              "    John() {*this->name = '\\0';}\n"
               "\n"
               "private:\n"
               "    char name[255];\n"
@@ -2141,6 +2455,26 @@ private:
         ASSERT_EQUALS("", errout.str());
     }
 
+    void uninitVarArray9() { // #6957
+        check("class BaseGDL;\n"
+              "struct IxExprListT {\n"
+              "private:\n"
+              "    BaseGDL* eArr[3];\n"
+              "public:\n"
+              "    IxExprListT() {}\n"
+              "};");
+        ASSERT_EQUALS("[test.cpp:6]: (warning) Member variable 'IxExprListT::eArr' is not initialized in the constructor.\n", errout.str());
+        check("struct sRAIUnitDefBL {\n"
+              "  sRAIUnitDefBL();\n"
+              "  ~sRAIUnitDefBL();\n"
+              "};\n"
+              "struct sRAIUnitDef {\n"
+              "  sRAIUnitDef() {}\n"
+              "  sRAIUnitDefBL *List[35];\n"
+              "};");
+        ASSERT_EQUALS("[test.cpp:6]: (warning) Member variable 'sRAIUnitDef::List' is not initialized in the constructor.\n", errout.str());
+    }
+
     void uninitVarArray2D() {
         check("class John\n"
               "{\n"
@@ -2185,7 +2519,7 @@ private:
               "    float g;\n"
               "public:\n"
               "    Fred() : f{0, true} { }\n"
-              "    float get() const\n"
+              "    float get() const;\n"
               "};\n"
               "float Fred::get() const { return g; }");
         ASSERT_EQUALS("[test.cpp:9]: (warning) Member variable 'Fred::g' is not initialized in the constructor.\n", errout.str());
@@ -2273,6 +2607,22 @@ private:
               "    int x;\n"
               "    int y;\n"
               "    POINT() :x(0), y(0) { }\n"
+              "};\n"
+              "class Fred\n"
+              "{\n"
+              "private:\n"
+              "    POINT p;\n"
+              "public:\n"
+              "    Fred()\n"
+              "    { }\n"
+              "};");
+        ASSERT_EQUALS("", errout.str());
+
+        // non static data-member initialization
+        check("struct POINT\n"
+              "{\n"
+              "    int x=0;\n"
+              "    int y=0;\n"
               "};\n"
               "class Fred\n"
               "{\n"
@@ -2910,6 +3260,15 @@ private:
               "  C() _STLP_NOTHROW {}\n"
               "  C(const C&) _STLP_NOTHROW {}\n"
               "};\n");
+        ASSERT_EQUALS("", errout.str());
+    }
+
+    void classWithOperatorInName() { // ticket #2827
+        check("class operatorX {\n"
+              "  int mValue;\n"
+              "public:\n"
+              "  operatorX() : mValue(0) {}\n"
+              "};");
         ASSERT_EQUALS("", errout.str());
     }
 };

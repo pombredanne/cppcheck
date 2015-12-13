@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2014 Daniel Marjamäki and Cppcheck team.
+ * Copyright (C) 2007-2015 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,18 +20,18 @@
 /**
  *
  * @mainpage Cppcheck
- * @version 1.64.99
+ * @version 1.71.99
  *
  * @section overview_sec Overview
  * Cppcheck is a simple tool for static analysis of C/C++ code.
  *
  * When you write a checker you have access to:
- *  - %Token list = the tokenized code
- *  - Syntax tree = Syntax tree of each expression
- *  - SymbolDatabase = Information about all types/variables/functions/etc
+ *  - %Token list - the tokenized code
+ *  - Syntax tree - Syntax tree of each expression
+ *  - %SymbolDatabase - Information about all types/variables/functions/etc
  *    in the current translation unit
- *  - Library = Information about functions
- *  - Value flow analysis => possible values for each token
+ *  - Library - Configuration of functions/types
+ *  - Value flow analysis - Context sensitive analysis that determine possible values for each token
  *
  * Use --debug on the command line to see debug output for the token list
  * and the syntax tree. If both --debug and --verbose is used, the symbol
@@ -48,8 +48,15 @@ void CheckOther::checkZeroDivision()
     // Iterate through all tokens in the token list
     for (const Token *tok = _tokenizer->tokens(); tok; tok = tok->next())
     {
-        if (Token::Match(tok, "/ 0"))
-            reportError(tok, Severity::error, "zerodiv", "Division by zero");
+        // is this a division or modulo?
+        if (Token::Match(tok, "[/%]")) {
+            // try to get value '0' of rhs
+            const ValueFlow::Value *value = tok->astOperand2()->getValue(0);
+
+            // if 'value' is not NULL, rhs can be zero.
+            if (value)
+                reportError(tok, Severity::error, "zerodiv", "Division by zero");
+        }
     }
 }
  @endcode
@@ -86,7 +93,7 @@ void CheckOther::checkZeroDivision()
  *   - Macros are expanded
  * -# Tokenize the file (see Tokenizer)
  * -# Run the runChecks of all check classes.
- * -# Simplify the tokenlist (Tokenizer::simplifyTokenList)
+ * -# Simplify the tokenlist (Tokenizer::simplifyTokenList2)
  * -# Run the runSimplifiedChecks of all check classes
  *
  * When errors are found, they are reported back to the CppCheckExecutor through the ErrorLogger interface
@@ -95,8 +102,12 @@ void CheckOther::checkZeroDivision()
 
 #include "cppcheckexecutor.h"
 
+#include <iostream>
+#include <cstdlib>
+
 #ifdef _WIN32
 #include <windows.h>
+static char exename[1024] = {0};
 #endif
 
 /**
@@ -115,11 +126,24 @@ int main(int argc, char* argv[])
 
     CppCheckExecutor exec;
 #ifdef _WIN32
-    char exename[1024] = {0};
-    GetModuleFileNameA(NULL, exename, sizeof(exename)/sizeof(exename[0])-1);
+    GetModuleFileNameA(nullptr, exename, sizeof(exename)/sizeof(exename[0])-1);
     argv[0] = exename;
 #endif
-    return exec.check(argc, argv);
+
+#ifdef NDEBUG
+    try {
+#endif
+        return exec.check(argc, argv);
+#ifdef NDEBUG
+    } catch (const InternalError& e) {
+        std::cout << e.errorMessage << std::endl;
+    } catch (const std::exception& error) {
+        std::cout << error.what() << std::endl;
+    } catch (...) {
+        std::cout << "Unknown exception" << std::endl;
+    }
+    return EXIT_FAILURE;
+#endif
 }
 
 
