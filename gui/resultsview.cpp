@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,20 +39,21 @@
 #include "printablereport.h"
 #include "applicationlist.h"
 #include "checkstatistics.h"
+#include "path.h"
 
 ResultsView::ResultsView(QWidget * parent) :
     QWidget(parent),
-    mErrorsFound(false),
     mShowNoErrorsMessage(true),
     mStatistics(new CheckStatistics(this))
 {
     mUI.setupUi(this);
 
     connect(mUI.mTree, SIGNAL(ResultsHidden(bool)), this, SIGNAL(ResultsHidden(bool)));
+    connect(mUI.mTree, SIGNAL(CheckSelected(QStringList)), this, SIGNAL(CheckSelected(QStringList)));
     connect(mUI.mTree, SIGNAL(SelectionChanged(const QModelIndex &)), this, SLOT(UpdateDetails(const QModelIndex &)));
 }
 
-void ResultsView::Initialize(QSettings *settings, ApplicationList *list)
+void ResultsView::Initialize(QSettings *settings, ApplicationList *list, ThreadHandler *checkThreadHandler)
 {
     mUI.mProgress->setMinimum(0);
     mUI.mProgress->setVisible(false);
@@ -61,7 +62,7 @@ void ResultsView::Initialize(QSettings *settings, ApplicationList *list)
     mUI.mVerticalSplitter->restoreState(state);
     mShowNoErrorsMessage = settings->value(SETTINGS_SHOW_NO_ERRORS, true).toBool();
 
-    mUI.mTree->Initialize(settings, list);
+    mUI.mTree->Initialize(settings, list, checkThreadHandler);
 }
 
 ResultsView::~ResultsView()
@@ -73,7 +74,6 @@ void ResultsView::Clear(bool results)
 {
     if (results) {
         mUI.mTree->Clear();
-        mErrorsFound = false;
     }
 
     mUI.mDetails->setText("");
@@ -89,13 +89,11 @@ void ResultsView::Clear(bool results)
 void ResultsView::Clear(const QString &filename)
 {
     mUI.mTree->Clear(filename);
+}
 
-    /**
-     * @todo Optimize this.. It is inefficient to check this every time.
-     */
-    // If the results list got empty..
-    if (!mUI.mTree->HasResults())
-        mErrorsFound = false;
+void ResultsView::ClearRecheckFile(const QString &filename)
+{
+    mUI.mTree->ClearRecheckFile(filename);
 }
 
 void ResultsView::Progress(int value, const QString& description)
@@ -106,7 +104,6 @@ void ResultsView::Progress(int value, const QString& description)
 
 void ResultsView::Error(const ErrorItem &item)
 {
-    mErrorsFound = true;
     if (mUI.mTree->AddErrorItem(item)) {
         emit GotResults();
         mStatistics->AddItem(ShowTypes::SeverityToShowType(item.severity));
@@ -140,7 +137,7 @@ void ResultsView::FilterResults(const QString& filter)
 
 void ResultsView::Save(const QString &filename, Report::Type type) const
 {
-    if (!mErrorsFound) {
+    if (!HasResults()) {
         QMessageBox msgBox;
         msgBox.setText(tr("No errors found, nothing to save."));
         msgBox.setIcon(QMessageBox::Critical);
@@ -204,7 +201,7 @@ void ResultsView::PrintPreview()
 
 void ResultsView::Print(QPrinter* printer)
 {
-    if (!mErrorsFound) {
+    if (!HasResults()) {
         QMessageBox msgBox;
         msgBox.setText(tr("No errors found, nothing to print."));
         msgBox.setIcon(QMessageBox::Critical);
@@ -234,6 +231,11 @@ void ResultsView::SetCheckDirectory(const QString &dir)
     mUI.mTree->SetCheckDirectory(dir);
 }
 
+QString ResultsView::GetCheckDirectory(void)
+{
+    return mUI.mTree->GetCheckDirectory();
+}
+
 void ResultsView::CheckingStarted(int count)
 {
     mUI.mProgress->setVisible(true);
@@ -250,7 +252,7 @@ void ResultsView::CheckingFinished()
     //Should we inform user of non visible/not found errors?
     if (mShowNoErrorsMessage) {
         //Tell user that we found no errors
-        if (!mErrorsFound) {
+        if (!HasResults()) {
             QMessageBox msg(QMessageBox::Information,
                             tr("Cppcheck"),
                             tr("No errors found."),
@@ -338,7 +340,7 @@ void ResultsView::ReadErrorsXml(const QString &filename)
     }
 
     ErrorItem item;
-    foreach(item, errors) {
+    foreach (item, errors) {
         mUI.mTree->AddErrorItem(item);
     }
     mUI.mTree->SetCheckDirectory("");
@@ -373,7 +375,7 @@ void ResultsView::UpdateDetails(const QModelIndex &index)
                            .arg(tr("Message")).arg(message);
 
     const QString file0 = data["file0"].toString();
-    if (file0 != "" && file0 != data["file"].toString())
+    if (file0 != "" && Path::isHeader(data["file"].toString().toStdString()))
         formattedMsg += QString("\n\n%1: %2").arg(tr("First included by")).arg(QDir::toNativeSeparators(file0));
 
     if (mUI.mTree->ShowIdColumn())

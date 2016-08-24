@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,6 +35,7 @@ class Function;
 class Variable;
 class ValueType;
 class Settings;
+class Enumerator;
 
 /// @addtogroup Core
 /// @{
@@ -61,7 +62,7 @@ private:
 public:
     enum Type {
         eVariable, eType, eFunction, eKeyword, eName, // Names: Variable (varId), Type (typeId, later), Function (FuncId, later), Language keyword, Name (unknown identifier)
-        eNumber, eString, eChar, eBoolean, eLiteral, // Literals: Number, String, Character, Boolean, User defined literal (C++11)
+        eNumber, eString, eChar, eBoolean, eLiteral, eEnumerator, // Literals: Number, String, Character, Boolean, User defined literal (C++11), Enumerator
         eArithmeticalOp, eComparisonOp, eAssignmentOp, eLogicalOp, eBitOp, eIncDecOp, eExtendedOp, // Operators: Arithmetical, Comparison, Assignment, Logical, Bitwise, ++/--, Extended
         eBracket, // {, }, <, >: < and > only if link() is set. Otherwise they are comparison operators.
         eOther,
@@ -150,19 +151,20 @@ public:
      *
      * Possible patterns
      * - "%any%" any token
-     * - "%name%" any token which is a name, variable or type e.g. "hello" or "int"
-     * - "%type%" Anything that can be a variable type, e.g. "int", but not "delete".
-     * - "%num%" Any numeric token, e.g. "23"
+     * - "%assign%" a assignment operand
      * - "%bool%" true or false
      * - "%char%" Any token enclosed in &apos;-character.
      * - "%comp%" Any token such that isComparisonOp() returns true.
+     * - "%cop%" Any token such that isConstOp() returns true.
+     * - "%name%" any token which is a name, variable or type e.g. "hello" or "int"
+     * - "%num%" Any numeric token, e.g. "23"
+     * - "%op%" Any token such that isOp() returns true.
+     * - "%or%" A bitwise-or operator '|'
+     * - "%oror%" A logical-or operator '||'
+     * - "%type%" Anything that can be a variable type, e.g. "int", but not "delete".
      * - "%str%" Any token starting with &quot;-character (C-string).
      * - "%var%" Match with token with varId > 0
      * - "%varid%" Match with parameter varid
-     * - "%op%" Any token such that isOp() returns true.
-     * - "%cop%" Any token such that isConstOp() returns true.
-     * - "%or%" A bitwise-or operator '|'
-     * - "%oror%" A logical-or operator '||'
      * - "[abc]" Any of the characters 'a' or 'b' or 'c'
      * - "int|void|char" Any of the strings, int, void or char
      * - "int|void|char|" Any of the strings, int, void or char or empty string
@@ -170,15 +172,8 @@ public:
      * - "someRandomText" If token contains "someRandomText".
      *
      * multi-compare patterns such as "int|void|char" can contain %%or%, %%oror% and %%op%
-     * but it is not recommended to put such an %%cmd% as the first pattern.
-     *
-     * It's possible to use multi-compare patterns with all the other %%cmds%,
-     * except for %%varid%, and normal names, but the %%cmds% should be put as
-     * the first patterns in the list, then the normal names.
+     * it is recommended to put such an %%cmd% as the first pattern.
      * For example: "%var%|%num%|)" means yes to a variable, a number or ')'.
-     *
-     * @todo Make it possible to use the %%cmds% and the normal names in the
-     * multicompare list without an order.
      *
      * The patterns can be also combined to compare to multiple tokens at once
      * by separating tokens with a space, e.g.
@@ -253,15 +248,18 @@ public:
     }
     bool isName() const {
         return _tokType == eName || _tokType == eType || _tokType == eVariable || _tokType == eFunction || _tokType == eKeyword ||
-               _tokType == eBoolean; // TODO: "true"/"false" aren't really a name...
+               _tokType == eBoolean || _tokType == eEnumerator; // TODO: "true"/"false" aren't really a name...
     }
     bool isUpperCaseName() const;
     bool isLiteral() const {
         return _tokType == eNumber || _tokType == eString || _tokType == eChar ||
-               _tokType == eBoolean || _tokType == eLiteral;
+               _tokType == eBoolean || _tokType == eLiteral || _tokType == eEnumerator;
     }
     bool isNumber() const {
         return _tokType == eNumber;
+    }
+    bool isEnumerator() const {
+        return _tokType == eEnumerator;
     }
     bool isOp() const {
         return (isConstOp() ||
@@ -400,6 +398,12 @@ public:
     void isComplex(bool value) {
         setFlag(fIsComplex, value);
     }
+    bool isEnumType() const {
+        return getFlag(fIsEnumType);
+    }
+    void isEnumType(bool value) {
+        setFlag(fIsEnumType, value);
+    }
 
     static const Token *findsimplematch(const Token *startTok, const char pattern[]);
     static const Token *findsimplematch(const Token *startTok, const char pattern[], const Token *end);
@@ -466,12 +470,11 @@ public:
      * Insert new token after this token. This function will handle
      * relations between next and previous token also.
      * @param tokenStr String for the new token.
+     * @param originalNameStr String used for Token::originalName().
      * @param prepend Insert the new token before this token when it's not
      * the first one on the tokens list.
      */
-    void insertToken(const std::string &tokenStr, bool prepend=false);
-
-    void insertToken(const std::string &tokenStr, const std::string &originalNameStr, bool prepend=false);
+    void insertToken(const std::string &tokenStr, const std::string &originalNameStr=emptyString, bool prepend=false);
 
     Token *previous() const {
         return _previous;
@@ -631,19 +634,32 @@ public:
     * Associate this token with given type
     * @param t Type to be associated
     */
-    void type(const ::Type *t) {
-        _type = t;
-        if (t)
-            _tokType = eType;
-        else if (_tokType == eType)
-            _tokType = eName;
-    }
+    void type(const ::Type *t);
 
     /**
     * @return a pointer to the type associated with this token.
     */
     const ::Type *type() const {
         return _tokType == eType ? _type : 0;
+    }
+
+    /**
+    * @return a pointer to the Enumerator associated with this token.
+    */
+    const Enumerator *enumerator() const {
+        return _tokType == eEnumerator ? _enumerator : 0;
+    }
+
+    /**
+     * Associate this token with given enumerator
+     * @param e Enumerator to be associated
+     */
+    void enumerator(const Enumerator *e) {
+        _enumerator = e;
+        if (e)
+            _tokType = eEnumerator;
+        else if (_tokType == eEnumerator)
+            _tokType = eName;
     }
 
     /**
@@ -732,7 +748,7 @@ public:
             if (it->intvalue == val && !it->tokvalue)
                 return &(*it);
         }
-        return NULL;
+        return nullptr;
     }
 
     const ValueFlow::Value * getMaxValue(bool condition) const {
@@ -742,7 +758,7 @@ public:
             if (it->tokvalue)
                 continue;
             if ((!ret || it->intvalue > ret->intvalue) &&
-                ((it->condition != NULL) == condition))
+                ((it->condition != nullptr) == condition))
                 ret = &(*it);
         }
         return ret;
@@ -791,6 +807,7 @@ private:
         const Function *_function;
         const Variable *_variable;
         const ::Type* _type;
+        const Enumerator *_enumerator;
     };
 
     unsigned int _varId;
@@ -822,7 +839,8 @@ private:
         fIsAttributeNothrow     = (1 << 13), // __attribute__((nothrow)), __declspec(nothrow)
         fIsAttributeUsed        = (1 << 14), // __attribute__((used))
         fIsOperatorKeyword      = (1 << 15), // operator=, etc
-        fIsComplex              = (1 << 16)  // complex/_Complex type
+        fIsComplex              = (1 << 16), // complex/_Complex type
+        fIsEnumType             = (1 << 17)  // enumeration type
     };
 
     unsigned int _flags;
@@ -893,7 +911,7 @@ public:
     bool isCalculation() const;
 
     void clearAst() {
-        _astOperand1 = _astOperand2 = _astParent = NULL;
+        _astOperand1 = _astOperand2 = _astParent = nullptr;
     }
 
     std::string astString(const char *sep = "") const {

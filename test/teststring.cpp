@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,7 +44,6 @@ private:
         TEST_CASE(strPlusChar1);     // "/usr" + '/'
         TEST_CASE(strPlusChar2);     // "/usr" + ch
         TEST_CASE(strPlusChar3);     // ok: path + "/sub" + '/'
-        TEST_CASE(strPlusChar4);     // ast
 
         TEST_CASE(sprintf1);        // Dangerous usage of sprintf
         TEST_CASE(sprintf2);
@@ -87,6 +86,24 @@ private:
         check("void f() {\n"
               "  QString abc = \"abc\";\n"
               "  abc[0] = 'a';\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
+
+        check("void foo_FP1(char *p) {\n"
+              "  p[1] = 'B';\n"
+              "}\n"
+              "void foo_FP2(void) {\n"
+              "  char* s = \"Y\";\n"
+              "  foo_FP1(s);\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:2] -> [test.cpp:5]: (error) Modifying string literal \"Y\" directly or indirectly is undefined behaviour.\n", errout.str());
+
+        check("void foo_FP1(char *p) {\n"
+              "  p[1] = 'B';\n"
+              "}\n"
+              "void foo_FP2(void) {\n"
+              "  char s[10] = \"Y\";\n"
+              "  foo_FP1(s);\n"
               "}");
         ASSERT_EQUALS("", errout.str());
     }
@@ -154,6 +171,16 @@ private:
               "  }"
               "}");
         ASSERT_EQUALS("[test.cpp:3]: (warning) Unnecessary comparison of static strings.\n", errout.str());
+
+        check("void f() {\n"
+              "  if (strcmp($\"00FF00\", \"00FF00\") == 0) {}"
+              "}");
+        ASSERT_EQUALS("", errout.str());
+
+        check("void f() {\n"
+              "  if ($strcmp(\"00FF00\", \"00FF00\") == 0) {}"
+              "}");
+        ASSERT_EQUALS("", errout.str());
 
         check("int main()\n"
               "{\n"
@@ -472,11 +499,6 @@ private:
               "    std::string path = temp + '/' + \"sub\" + '/';\n"
               "}");
         ASSERT_EQUALS("", errout.str());
-    }
-
-    void strPlusChar4() {
-        // don't crash
-        check("int test() { int +; }");
     }
 
 

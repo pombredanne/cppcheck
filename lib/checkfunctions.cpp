@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,6 +32,11 @@ namespace {
     CheckFunctions instance;
 }
 
+static const CWE CWE252(252U);  // Unchecked Return Value
+static const CWE CWE477(477U);  // Use of Obsolete Functions
+static const CWE CWE758(758U);  // Reliance on Undefined, Unspecified, or Implementation-Defined Behavior
+static const CWE CWE628(628U);  // Function Call with Incorrectly Specified Arguments
+
 void CheckFunctions::checkProhibitedFunctions()
 {
     const bool checkAlloca = _settings->isEnabled("warning") && ((_settings->standards.c >= Standards::C99 && _tokenizer->isC()) || _settings->standards.cpp >= Standards::CPP11);
@@ -43,15 +48,16 @@ void CheckFunctions::checkProhibitedFunctions()
             if (tok->isName() && tok->varId() == 0 && tok->strAt(1) == "(") {
                 // alloca() is special as it depends on the code being C or C++, so it is not in Library
                 if (checkAlloca && Token::simpleMatch(tok, "alloca (") && (!tok->function() || tok->function()->nestedIn->type == Scope::eGlobal)) {
-                    if (_tokenizer->isC())
+                    if (_tokenizer->isC()) {
+                        if (_settings->standards.c > Standards::C89)
+                            reportError(tok, Severity::warning, "allocaCalled",
+                                        "Obsolete function 'alloca' called. In C99 and later it is recommended to use a variable length array instead.\n"
+                                        "The obsolete function 'alloca' is called. In C99 and later it is recommended to use a variable length array or "
+                                        "a dynamically allocated array instead. The function 'alloca' is dangerous for many reasons "
+                                        "(http://stackoverflow.com/questions/1018853/why-is-alloca-not-considered-good-practice and http://linux.die.net/man/3/alloca).");
+                    } else
                         reportError(tok, Severity::warning, "allocaCalled",
-                                    "Obsolete function 'alloca' called. In C99 and later it is recommended to use a variable length array instead.\n"
-                                    "The obsolete function 'alloca' is called. In C99 and later it is recommended to use a variable length array or "
-                                    "a dynamically allocated array instead. The function 'alloca' is dangerous for many reasons "
-                                    "(http://stackoverflow.com/questions/1018853/why-is-alloca-not-considered-good-practice and http://linux.die.net/man/3/alloca).");
-                    else
-                        reportError(tok, Severity::warning, "allocaCalled",
-                                    "Obsolete function 'alloca' called. In C++11 and later it is recommended to use std::array<> instead.\n"
+                                    "Obsolete function 'alloca' called.\n"
                                     "The obsolete function 'alloca' is called. In C++11 and later it is recommended to use std::array<> or "
                                     "a dynamically allocated array instead. The function 'alloca' is dangerous for many reasons "
                                     "(http://stackoverflow.com/questions/1018853/why-is-alloca-not-considered-good-practice and http://linux.die.net/man/3/alloca).");
@@ -62,7 +68,7 @@ void CheckFunctions::checkProhibitedFunctions()
                     const Library::WarnInfo* wi = _settings->library.getWarnInfo(tok);
                     if (wi) {
                         if (_settings->isEnabled(Severity::toString(wi->severity)) && _settings->standards.c >= wi->standards.c && _settings->standards.cpp >= wi->standards.cpp) {
-                            reportError(tok, wi->severity, tok->str() + "Called", wi->message);
+                            reportError(tok, wi->severity, tok->str() + "Called", wi->message, CWE477, false);
                         }
                     }
                 }
@@ -95,7 +101,11 @@ void CheckFunctions::invalidFunctionUsage()
                     const Token *top = argtok;
                     while (top->astParent() && top->astParent()->str() != "," && top->astParent() != tok->next())
                         top = top->astParent();
-                    if (top->isComparisonOp() || Token::Match(top, "%oror%|&&")) {
+                    const Token *var = top;
+                    while (Token::Match(var, ".|::"))
+                        var = var->astOperand2();
+                    if (Token::Match(top, "%comp%|%oror%|&&|!|true|false") ||
+                        (var && var->variable() && Token::simpleMatch(var->variable()->typeStartToken(), "bool"))) {
                         if (_settings->library.isboolargbad(functionToken, argnr))
                             invalidFunctionArgBoolError(top, functionToken->str(), argnr);
 
@@ -123,14 +133,14 @@ void CheckFunctions::invalidFunctionArgError(const Token *tok, const std::string
         errmsg << ". The value is " << tok->str() << " but the valid values are '" << validstr << "'.";
     else if (tok->isComparisonOp())
         errmsg << ". The value is 0 or 1 (comparison result) but the valid values are '" << validstr << "'.";
-    reportError(tok, Severity::error, "invalidFunctionArg", errmsg.str());
+    reportError(tok, Severity::error, "invalidFunctionArg", errmsg.str(), CWE628, false);
 }
 
 void CheckFunctions::invalidFunctionArgBoolError(const Token *tok, const std::string &functionName, int argnr)
 {
     std::ostringstream errmsg;
     errmsg << "Invalid " << functionName << "() argument nr " << argnr << ". A non-boolean value is required.";
-    reportError(tok, Severity::error, "invalidFunctionArgBool", errmsg.str());
+    reportError(tok, Severity::error, "invalidFunctionArgBool", errmsg.str(), CWE628, false);
 }
 
 //---------------------------------------------------------------------------
@@ -169,7 +179,7 @@ void CheckFunctions::checkIgnoredReturnValue()
 void CheckFunctions::ignoredReturnValueError(const Token* tok, const std::string& function)
 {
     reportError(tok, Severity::warning, "ignoredReturnValue",
-                "Return value of function " + function + "() is not used.", 0U, false);
+                "Return value of function " + function + "() is not used.", CWE252, false);
 }
 
 
@@ -188,7 +198,7 @@ void CheckFunctions::checkMathFunctions()
         for (const Token* tok = scope->classStart->next(); tok != scope->classEnd; tok = tok->next()) {
             if (tok->varId())
                 continue;
-            if (printWarnings) {
+            if (printWarnings && Token::Match(tok, "%name% ( !!)")) {
                 if (tok->strAt(-1) != "."
                     && Token::Match(tok, "log|logf|logl|log10|log10f|log10l ( %num% )")) {
                     const std::string& number = tok->strAt(2);
@@ -222,7 +232,7 @@ void CheckFunctions::checkMathFunctions()
                         mathfunctionCallWarning(tok, 2);
                 }
                 // fmod ( x , y) If y is zero, then either a range error will occur or the function will return zero (implementation-defined).
-                else if (Token::Match(tok, "fmod|fmodf|fmodl ( %any%")) {
+                else if (Token::Match(tok, "fmod|fmodf|fmodl (")) {
                     const Token* nextArg = tok->tokAt(2)->nextArgument();
                     if (nextArg && nextArg->isNumber() && MathLib::isNullValue(nextArg->str()))
                         mathfunctionCallWarning(tok, 2);
@@ -253,16 +263,16 @@ void CheckFunctions::mathfunctionCallWarning(const Token *tok, const unsigned in
 {
     if (tok) {
         if (numParam == 1)
-            reportError(tok, Severity::warning, "wrongmathcall", "Passing value " + tok->strAt(2) + " to " + tok->str() + "() leads to implementation-defined result.");
+            reportError(tok, Severity::warning, "wrongmathcall", "Passing value " + tok->strAt(2) + " to " + tok->str() + "() leads to implementation-defined result.", CWE758, false);
         else if (numParam == 2)
-            reportError(tok, Severity::warning, "wrongmathcall", "Passing values " + tok->strAt(2) + " and " + tok->strAt(4) + " to " + tok->str() + "() leads to implementation-defined result.");
+            reportError(tok, Severity::warning, "wrongmathcall", "Passing values " + tok->strAt(2) + " and " + tok->strAt(4) + " to " + tok->str() + "() leads to implementation-defined result.", CWE758, false);
     } else
-        reportError(tok, Severity::warning, "wrongmathcall", "Passing value '#' to #() leads to implementation-defined result.");
+        reportError(tok, Severity::warning, "wrongmathcall", "Passing value '#' to #() leads to implementation-defined result.", CWE758, false);
 }
 
 void CheckFunctions::mathfunctionCallWarning(const Token *tok, const std::string& oldexp, const std::string& newexp)
 {
-    reportError(tok, Severity::style, "unpreciseMathCall", "Expression '" + oldexp + "' can be replaced by '" + newexp + "' to avoid loss of precision.");
+    reportError(tok, Severity::style, "unpreciseMathCall", "Expression '" + oldexp + "' can be replaced by '" + newexp + "' to avoid loss of precision.", CWE758, false);
 }
 
 void CheckFunctions::checkLibraryMatchFunctions()

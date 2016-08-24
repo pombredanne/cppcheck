@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,6 +30,8 @@
 // Register this check class
 CheckUnusedFunctions CheckUnusedFunctions::instance;
 
+static const struct CWE CWE561(561U);   // Dead Code
+
 
 //---------------------------------------------------------------------------
 // FUNCTION USAGE - Check for unused functions etc
@@ -37,6 +39,7 @@ CheckUnusedFunctions CheckUnusedFunctions::instance;
 
 void CheckUnusedFunctions::parseTokens(const Tokenizer &tokenizer, const char FileName[], const Settings *settings)
 {
+    const bool doMarkup = settings->library.markupFile(FileName);
     const SymbolDatabase* symbolDatabase = tokenizer.getSymbolDatabase();
 
     // Function declarations..
@@ -103,7 +106,7 @@ void CheckUnusedFunctions::parseTokens(const Tokenizer &tokenizer, const char Fi
             }
         }
 
-        if (!settings->library.markupFile(FileName) // only check source files
+        if (!doMarkup // only check source files
             && settings->library.isexporter(tok->str()) && tok->next() != 0) {
             const Token * propToken = tok->next();
             while (propToken && propToken->str() != ")") {
@@ -125,8 +128,7 @@ void CheckUnusedFunctions::parseTokens(const Tokenizer &tokenizer, const char Fi
             }
         }
 
-        if (settings->library.markupFile(FileName)
-            && settings->library.isimporter(FileName, tok->str()) && tok->next()) {
+        if (doMarkup && settings->library.isimporter(FileName, tok->str()) && tok->next()) {
             const Token * propToken = tok->next();
             if (propToken->next()) {
                 propToken = propToken->next();
@@ -250,7 +252,7 @@ void CheckUnusedFunctions::unusedFunctionError(ErrorLogger * const errorLogger,
         locationList.push_back(fileLoc);
     }
 
-    const ErrorLogger::ErrorMessage errmsg(locationList, Severity::style, "The function '" + funcname + "' is never used.", "unusedFunction", false);
+    const ErrorLogger::ErrorMessage errmsg(locationList, emptyString, Severity::style, "The function '" + funcname + "' is never used.", "unusedFunction", CWE561, false);
     if (errorLogger)
         errorLogger->reportErr(errmsg);
     else
@@ -259,7 +261,7 @@ void CheckUnusedFunctions::unusedFunctionError(ErrorLogger * const errorLogger,
 
 Check::FileInfo *CheckUnusedFunctions::getFileInfo(const Tokenizer *tokenizer, const Settings *settings) const
 {
-    if (settings->isEnabled("unusedFunction") && settings->_jobs == 1)
+    if (settings->isEnabled("unusedFunction") && settings->jobs == 1)
         instance.parseTokens(*tokenizer, tokenizer->list.getFiles().front().c_str(), settings);
     return nullptr;
 

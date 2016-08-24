@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,20 +26,22 @@
 #include "translationhandler.h"
 
 
-static void unused() __attribute__((unused));
 // Provide own translations for standard buttons. This (garbage) code is needed to enforce them to appear in .ts files even after "lupdate gui.pro"
 static void unused()
 {
-    // Qt4
+#if ((QT_VERSION >= 0x040000)&&(QT_VERSION < 0x050000))
     Q_UNUSED(QT_TRANSLATE_NOOP("QDialogButtonBox", "OK"));
     Q_UNUSED(QT_TRANSLATE_NOOP("QDialogButtonBox", "Cancel"));
     Q_UNUSED(QT_TRANSLATE_NOOP("QDialogButtonBox", "Close"));
     Q_UNUSED(QT_TRANSLATE_NOOP("QDialogButtonBox", "Save"));
-    // Qt5
+#elif ((QT_VERSION >= 0x050000)&&(QT_VERSION < 0x060000))
     Q_UNUSED(QT_TRANSLATE_NOOP("QPlatformTheme", "OK"));
     Q_UNUSED(QT_TRANSLATE_NOOP("QPlatformTheme", "Cancel"));
     Q_UNUSED(QT_TRANSLATE_NOOP("QPlatformTheme", "Close"));
     Q_UNUSED(QT_TRANSLATE_NOOP("QPlatformTheme", "Save"));
+#else
+#error Unsupported Qt version.
+#endif
 }
 
 TranslationHandler::TranslationHandler(QObject *parent) :
@@ -71,7 +73,7 @@ TranslationHandler::~TranslationHandler()
 const QStringList TranslationHandler::GetNames() const
 {
     QStringList names;
-    foreach(TranslationInfo translation, mTranslations) {
+    foreach (TranslationInfo translation, mTranslations) {
         names.append(translation.mName);
     }
     return names;

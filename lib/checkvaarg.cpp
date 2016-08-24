@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,6 +30,10 @@ namespace {
 //---------------------------------------------------------------------------
 // Ensure that correct parameter is passed to va_start()
 //---------------------------------------------------------------------------
+
+// CWE ids used:
+static const struct CWE CWE664(664U);
+static const struct CWE CWE758(758U);
 
 void CheckVaarg::va_start_argument()
 {
@@ -72,7 +76,7 @@ void CheckVaarg::wrongParameterTo_va_start_error(const Token *tok, const std::st
 void CheckVaarg::referenceAs_va_start_error(const Token *tok, const std::string& paramName)
 {
     reportError(tok, Severity::error,
-                "va_start_referencePassed", "Using reference '" + paramName + "' as parameter for va_start() results in undefined behaviour.");
+                "va_start_referencePassed", "Using reference '" + paramName + "' as parameter for va_start() results in undefined behaviour.", CWE758, false);
 }
 
 //---------------------------------------------------------------------------
@@ -120,7 +124,14 @@ void CheckVaarg::va_list_usage()
                 tok = tok->linkAt(1);
             } else if (Token::Match(tok, "throw|return"))
                 exitOnEndOfStatement = true;
-            else if (_tokenizer->isCPP() && tok->str() == "try") {
+            else if (tok->str() == "break") {
+                const Scope* scope = tok->scope();
+                while (scope->nestedIn && scope->type != Scope::eFor && scope->type != Scope::eWhile && scope->type != Scope::eDo && scope->type != Scope::eSwitch)
+                    scope = scope->nestedIn;
+                tok = scope->classEnd;
+                if (!tok)
+                    return;
+            } else if (_tokenizer->isCPP() && tok->str() == "try") {
                 open = false;
                 break;
             } else if (!open && tok->varId() == var->declarationId())
@@ -136,17 +147,17 @@ void CheckVaarg::va_list_usage()
 void CheckVaarg::va_end_missingError(const Token *tok, const std::string& varname)
 {
     reportError(tok, Severity::error,
-                "va_end_missing", "va_list '" + varname + "' was opened but not closed by va_end().");
+                "va_end_missing", "va_list '" + varname + "' was opened but not closed by va_end().", CWE664, false);
 }
 
 void CheckVaarg::va_list_usedBeforeStartedError(const Token *tok, const std::string& varname)
 {
     reportError(tok, Severity::error,
-                "va_list_usedBeforeStarted", "va_list '" + varname + "' used before va_start() was called.");
+                "va_list_usedBeforeStarted", "va_list '" + varname + "' used before va_start() was called.", CWE664, false);
 }
 
 void CheckVaarg::va_start_subsequentCallsError(const Token *tok, const std::string& varname)
 {
     reportError(tok, Severity::error,
-                "va_start_subsequentCalls", "va_start() or va_copy() called subsequently on '" + varname + "' without va_end() in between.");
+                "va_start_subsequentCalls", "va_start() or va_copy() called subsequently on '" + varname + "' without va_end() in between.", CWE664, false);
 }

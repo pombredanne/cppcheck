@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -75,6 +75,7 @@ private:
         TEST_CASE(noConstructor8); // ticket #4404
         TEST_CASE(noConstructor9); // ticket #4419
         TEST_CASE(noConstructor10); // ticket #6614
+        TEST_CASE(noConstructor11); // ticket #3552
 
         TEST_CASE(forwardDeclaration); // ticket #4290/#3190
 
@@ -105,6 +106,8 @@ private:
         TEST_CASE(initvar_func_ret_func_ptr); // ticket #4449
 
         TEST_CASE(initvar_alias); // #6921
+
+        TEST_CASE(initvar_templateMember); // #7205
 
         TEST_CASE(operatorEqSTL);
 
@@ -556,6 +559,12 @@ private:
               "private:\n"
               "    wxTimer *WxTimer1;\n"
               "};\n");
+        ASSERT_EQUALS("", errout.str());
+    }
+
+    void noConstructor11() { // #3552
+        check("class Fred { int x; };\n"
+              "union U { int y; Fred fred; };");
         ASSERT_EQUALS("", errout.str());
     }
 
@@ -1437,6 +1446,25 @@ private:
               "    }\n"
               "};");
         ASSERT_EQUALS("[test.cpp:3]: (warning) Member variable 'S::a' is not initialized in the constructor.\n", errout.str());
+    }
+
+    void initvar_templateMember() {
+        check("template<int n_>\n"
+              "struct Wrapper {\n"
+              "    static void foo(int * x) {\n"
+              "        for (int i(0); i <= n_; ++i)\n"
+              "            x[i] = 5;\n"
+              "    }\n"
+              "};\n"
+              "class A {\n"
+              "public:\n"
+              "    static constexpr int dim = 5;\n"
+              "    int x[dim + 1];\n"
+              "    A() {\n"
+              "        Wrapper<dim>::foo(x);\n"
+              "    }\n"
+              "};");
+        ASSERT_EQUALS("", errout.str());
     }
 
     void operatorEqSTL() {

@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 #include "options.h"
 #include "redirect.h"
 
+#include <cstdio>
 #include <iostream>
 #include <list>
 
@@ -214,6 +215,18 @@ void TestFixture::todoAssertEquals(const char *filename, unsigned int linenr, lo
     todoAssertEquals(filename, linenr, wantedStr.str(), currentStr.str(), actualStr.str());
 }
 
+void TestFixture::assertThrow(const char *filename, unsigned int linenr) const
+{
+    ++fails_counter;
+    if (gcc_style_errors) {
+        errmsg << filename << ':' << linenr << " Assertion succeeded. "
+               << "The expected exception was thrown" << std::endl;
+    } else {
+        errmsg << "Assertion succeeded in " << filename << " at line " << linenr << std::endl
+               << "The expected exception was thrown" << std::endl << "_____" << std::endl;
+    }
+}
+
 void TestFixture::assertThrowFail(const char *filename, unsigned int linenr) const
 {
     ++fails_counter;
@@ -223,6 +236,18 @@ void TestFixture::assertThrowFail(const char *filename, unsigned int linenr) con
     } else {
         errmsg << "Assertion failed in " << filename << " at line " << linenr << std::endl
                << "The expected exception was not thrown" << std::endl << "_____" << std::endl;
+    }
+}
+
+void TestFixture::assertNoThrowFail(const char *filename, unsigned int linenr) const
+{
+    ++fails_counter;
+    if (gcc_style_errors) {
+        errmsg << filename << ':' << linenr << " Assertion failed. "
+               << "Unexpected exception was thrown" << std::endl;
+    } else {
+        errmsg << "Assertion failed in " << filename << " at line " << linenr << std::endl
+               << "Unexpected exception was thrown" << std::endl << "_____" << std::endl;
     }
 }
 

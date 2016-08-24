@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -45,6 +45,7 @@ private:
         TEST_CASE(uninitvar_switch);    // handling switch
         TEST_CASE(uninitvar_references); // references
         TEST_CASE(uninitvar_return);    // return
+        TEST_CASE(uninitvar_assign);    // = {..}
         TEST_CASE(uninitvar_strncpy);   // strncpy doesn't always null-terminate
         TEST_CASE(func_uninit_var);     // analyse function calls for: 'int a(int x) { return x+x; }'
         TEST_CASE(func_uninit_pointer); // analyse function calls for: 'void a(int *p) { *p = 0; }'
@@ -59,7 +60,6 @@ private:
         TEST_CASE(uninitvar2_while);
         TEST_CASE(uninitvar2_4494);      // #4494
         TEST_CASE(uninitvar2_malloc);    // malloc returns uninitialized data
-        TEST_CASE(uninitvar7); // ticket #5971
         TEST_CASE(uninitvar8); // ticket #6230
         TEST_CASE(uninitvar9); // ticket #6424
         TEST_CASE(uninitvar_unconditionalTry);
@@ -70,8 +70,10 @@ private:
         TEST_CASE(uninitvar_cpp11ArrayInit); // #7010
         TEST_CASE(uninitvar_rangeBasedFor); // #7078
         TEST_CASE(trac_4871);
-
         TEST_CASE(syntax_error); // Ticket #5073
+        TEST_CASE(trac_5970);
+
+        TEST_CASE(isVariableUsageDeref); // *p
 
         // dead pointer
         TEST_CASE(deadPointer);
@@ -486,16 +488,6 @@ private:
                        "}");
         ASSERT_EQUALS("[test.cpp:4]: (error) Uninitialized variable: s\n", errout.str());
 
-        // #1533
-        checkUninitVar("char a()\n"
-                       "{\n"
-                       "    char key;\n"
-                       "    struct A msg = { .buf = {&key} };\n"
-                       "    init(&msg);\n"
-                       "    key++;\n"
-                       "}");
-        ASSERT_EQUALS("", errout.str());
-
         checkUninitVar("void foo()\n"
                        "{\n"
                        "   char *buf = malloc(100);\n"
@@ -546,13 +538,6 @@ private:
                        "    c += 2;\n"
                        "}");
         ASSERT_EQUALS("[test.cpp:4]: (error) Uninitialized variable: c\n", errout.str());
-
-        checkUninitVar("void f()\n"
-                       "{\n"
-                       "    char *s = malloc(100);\n"
-                       "    *s += 10;\n"
-                       "}");
-        ASSERT_EQUALS("[test.cpp:4]: (error) Memory is allocated but not initialized: s\n", errout.str());
 
         checkUninitVar("void f()\n"
                        "{\n"
@@ -773,6 +758,17 @@ private:
                        "    if (x)\n"
                        "        i = 22;\n"
                        "    else\n"
+                       "        i = 33;\n"
+                       "    return i;\n"
+                       "}");
+        ASSERT_EQUALS("", errout.str());
+
+        checkUninitVar("int foo(int x)\n" // #5503
+                       "{\n"
+                       "    int i;\n"
+                       "    if (x < 2)\n"
+                       "        i = 22;\n"
+                       "    else if (x >= 2)\n" // condition is always true
                        "        i = 33;\n"
                        "    return i;\n"
                        "}");
@@ -1234,18 +1230,6 @@ private:
                        "    a[a[0]] = 0;\n"
                        "}");
         TODO_ASSERT_EQUALS("[test.cpp:4]: (error) Uninitialized variable: a\n", "", errout.str());
-
-        checkUninitVar("int f() {\n"
-                       "    char a[10];\n"
-                       "    char c = *a;\n"
-                       "}");
-        ASSERT_EQUALS("[test.cpp:3]: (error) Uninitialized variable: a\n", errout.str());
-
-        checkUninitVar("int f() {\n"
-                       "    char a[SIZE+10];\n"
-                       "    char c = *a;\n"
-                       "}");
-        ASSERT_EQUALS("[test.cpp:3]: (error) Uninitialized variable: a\n", errout.str());
 
         checkUninitVar("int f()\n"
                        "{\n"
@@ -1881,6 +1865,18 @@ private:
                            "}");
             ASSERT_EQUALS("[test.cpp:3]: (error) Uninitialized variable: i\n", errout.str());
         }
+    }
+
+    void uninitvar_assign() {  // = { .. }
+        // #1533
+        checkUninitVar("char a()\n"
+                       "{\n"
+                       "    char key;\n"
+                       "    struct A msg = { .buf = {&key} };\n"
+                       "    init(&msg);\n"
+                       "    key++;\n"
+                       "}");
+        ASSERT_EQUALS("", errout.str());
 
         // Ticket #5660 - False positive
         checkUninitVar("int f() {\n"
@@ -1890,6 +1886,25 @@ private:
                        "    return result;\n"
                        "}");
         ASSERT_EQUALS("", errout.str());
+
+        // #6873
+        checkUninitVar("int f() {\n"
+                       "    char a[10];\n"
+                       "    char *b[] = {a};\n"
+                       "    foo(b);\n"
+                       "    return atoi(a);\n"
+                       "}");
+        ASSERT_EQUALS("", errout.str());
+
+        // = { .. }
+        checkUninitVar("int f() {\n"
+                       "    int a;\n"
+                       "    int *p[] = { &a };\n"
+                       "    *p[0] = 0;\n"
+                       "    return a;\n"
+                       "}");
+        ASSERT_EQUALS("", errout.str());
+
     }
 
     // strncpy doesn't always null-terminate..
@@ -2125,15 +2140,6 @@ private:
                        "    int x;\n"
                        "    if (a==3) { x=2; }\n"
                        "    y = (a==3) ? x : a;\n"
-                       "}");
-        ASSERT_EQUALS("", errout.str());
-
-        // = { .. }
-        checkUninitVar("int f() {\n"
-                       "    int a;\n"
-                       "    int *p[] = { &a };\n"
-                       "    *p[0] = 0;\n"
-                       "    return a;\n"
                        "}");
         ASSERT_EQUALS("", errout.str());
 
@@ -2550,18 +2556,6 @@ private:
                        "    a << 1;\n"  // there might be a operator<<
                        "}");
         ASSERT_EQUALS("", errout.str());
-    }
-
-    void uninitvar7() {
-        const char code[] = "void eDBauth_user()  {\n"
-                            "   char *blid_cert;\n"
-                            "   if(  ) {\n"
-                            "        blid_cert   = ;\n"
-                            "   } \n"
-                            "}\n";
-
-        // Assume dfs is a non POD type if file is C++
-        checkUninitVar(code, "test.cpp");
     }
 
     void uninitvar8() {
@@ -3547,6 +3541,19 @@ private:
                        "  }\n"
                        "}");
         ASSERT_EQUALS("", errout.str());
+
+        // #6646 - init in for loop
+        checkUninitVar("void f() {\n" // No FP
+                       "  for (int i;;i++)\n"
+                       "    dostuff(&i);\n"
+                       "}");
+        ASSERT_EQUALS("", errout.str());
+
+        checkUninitVar("void f() {\n" // No FN
+                       "  for (int i;;i++)\n"
+                       "    a=i;\n"
+                       "}");
+        ASSERT_EQUALS("[test.cpp:2]: (error) Uninitialized variable: i\n", errout.str());
     }
 
     void uninitvar2_4494() {
@@ -3746,6 +3753,17 @@ private:
         ASSERT_THROW(checkUninitVar(code), InternalError);
     }
 
+    void trac_5970() { // Ticket #5073
+        checkUninitVar("void DES_ede3_ofb64_encrypt() {\n"
+                       "  DES_cblock d; \n"
+                       "  char *dp; \n"
+                       "  dp=(char *)d; \n"
+                       "  init(dp); \n"
+                       "}", "test.c");
+        ASSERT_EQUALS("", errout.str());
+    }
+
+
     void checkDeadPointer(const char code[]) {
         // Clear the error buffer..
         errout.str("");
@@ -3759,6 +3777,33 @@ private:
         // Check code..
         CheckUninitVar check(&tokenizer, &settings, this);
         check.deadPointer();
+    }
+
+    void isVariableUsageDeref() {
+        // *p
+        checkUninitVar("void f() {\n"
+                       "    char a[10];\n"
+                       "    char c = *a;\n"
+                       "}");
+        ASSERT_EQUALS("[test.cpp:3]: (error) Uninitialized variable: a\n", errout.str());
+
+        checkUninitVar("void f() {\n"
+                       "    char a[SIZE+10];\n"
+                       "    char c = *a;\n"
+                       "}");
+        ASSERT_EQUALS("[test.cpp:3]: (error) Uninitialized variable: a\n", errout.str());
+
+        checkUninitVar("void f() {\n"
+                       "    char a[10];\n"
+                       "    *a += 10;\n"
+                       "}");
+        ASSERT_EQUALS("[test.cpp:3]: (error) Uninitialized variable: a\n", errout.str());
+
+        checkUninitVar("void f() {\n"
+                       "  int a[10][10];\n"
+                       "  dostuff(*a);\n"
+                       "}");
+        ASSERT_EQUALS("", errout.str());
     }
 
     void deadPointer() {

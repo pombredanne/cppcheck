@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -164,10 +164,12 @@ private:
     }
 
     void valueFlowNumber() {
-        ASSERT_EQUALS(123, valueOfTok("x=123;",   "123").intvalue);
+        ASSERT_EQUALS(123, valueOfTok("x=123;", "123").intvalue);
+        ASSERT_EQUALS(10, valueOfTok("enum {A=10,B=15}; x=A+0;", "+").intvalue);
         ASSERT_EQUALS(0, valueOfTok("x=false;", "false").intvalue);
-        ASSERT_EQUALS(1, valueOfTok("x=true;",  "true").intvalue);
-        ASSERT_EQUALS((int)('a'), valueOfTok("x='a';",  "'a'").intvalue);
+        ASSERT_EQUALS(1, valueOfTok("x=true;", "true").intvalue);
+        ASSERT_EQUALS(0, valueOfTok("x(NULL);", "NULL").intvalue);
+        ASSERT_EQUALS((int)('a'), valueOfTok("x='a';", "'a'").intvalue);
         ASSERT_EQUALS((int)('\n'), valueOfTok("x='\\n';", "'\\n'").intvalue);
     }
 
@@ -325,6 +327,16 @@ private:
         ASSERT_EQUALS(2, values.front().intvalue);
         ASSERT_EQUALS(3, values.back().intvalue);
 
+        code = "x = (2<5) ? 2 : 3;\n";
+        values = tokenValues(code, "?");
+        ASSERT_EQUALS(1U, values.size());
+        ASSERT_EQUALS(2, values.front().intvalue);
+
+        code = "x = 123 ? : 456;\n";
+        values = tokenValues(code, "?");
+        ASSERT_EQUALS(1U, values.size());
+        ASSERT_EQUALS(123, values.empty() ? 0 : values.front().intvalue);
+
         // !
         code  = "void f(int x) {\n"
                 "    a = !x;\n"
@@ -333,6 +345,15 @@ private:
         values = tokenValues(code,"!");
         ASSERT_EQUALS(1U, values.size());
         ASSERT_EQUALS(1, values.back().intvalue);
+
+        // unary minus
+        code  = "void f(int x) {\n"
+                "    a = -x;\n"
+                "    if (x==10) {}\n"
+                "}";
+        values = tokenValues(code,"-");
+        ASSERT_EQUALS(1U, values.size());
+        ASSERT_EQUALS(-10, values.back().intvalue);
 
         // function call => calculation
         code  = "void f(int x) {\n"
@@ -836,6 +857,22 @@ private:
         ASSERT_EQUALS(false, testValueOfX(code, 8U, "\"\""));
         ASSERT_EQUALS(false, testValueOfX(code, 9U, "\"\""));
 
+        code = "void f() {\n" // #7599
+               "  t *x = 0;\n"
+               "  y = (a ? 1 : x\n" // <- x is 0
+               "       && x->y ? 1 : 2);" // <- x is not 0
+               "}";
+        ASSERT_EQUALS(true, testValueOfX(code, 3U, 0));
+        ASSERT_EQUALS(false, testValueOfX(code, 4U, 0));
+
+        code = "void f() {\n" // #7599
+               "  t *x = 0;\n"
+               "  y = (a ? 1 : !x\n" // <- x is 0
+               "       || x->y ? 1 : 2);" // <- x is not 0
+               "}";
+        ASSERT_EQUALS(true, testValueOfX(code, 3U, 0));
+        ASSERT_EQUALS(false, testValueOfX(code, 4U, 0));
+
         // if/else
         code = "void f() {\n"
                "    int x = 123;\n"
@@ -1065,6 +1102,15 @@ private:
                "}";
         ASSERT_EQUALS(false, testValueOfX(code, 3U, 87));
 
+        code = "void f() {\n"
+               "  int first=-1, x=0;\n"
+               "  do {\n"
+               "    if (first >= 0) { a = x; }\n" // <- x is not 0
+               "    first++; x=3;\n"
+               "  } while (1);\n"
+               "}";
+        ASSERT_EQUALS(false, testValueOfX(code, 4U, 0));
+
         // pointer/reference to x
         code = "int f(void) {\n"
                "  int x = 2;\n"
@@ -1166,6 +1212,14 @@ private:
                "  a = x;\n" // <- x can be 0
                "}\n";
         ASSERT_EQUALS(true, testValueOfX(code, 9U, 0)); // x can be 0 at line 9
+
+        code = "void f(const int a[]) {\n" // #6616
+               "  const int *x = 0;\n"
+               "  for (int i = 0; i < 10; i = *x) {\n" // <- x is not 0
+               "    x = a[i];\n"
+               "  }\n"
+               "}\n";
+        ASSERT_EQUALS(false, testValueOfX(code, 3U, 0));
     }
 
     void valueFlowAfterCondition() {
@@ -1218,6 +1272,12 @@ private:
 
         code = "void f(int x, int y) {\n"
                "    if (!(x&&y)) { return; }\n"
+               "    a = x;\n"
+               "}";
+        ASSERT_EQUALS(false, testValueOfX(code, 3U, 0));
+
+        code = "void f(int x) {\n"
+               "    if (!x) { { throw new string(); }; }\n"
                "    a = x;\n"
                "}";
         ASSERT_EQUALS(false, testValueOfX(code, 3U, 0));
@@ -1585,6 +1645,19 @@ private:
                "    n = (int)(i < 10 || abs(negWander) < abs(negTravel));\n"
                "}";
         testValueOfX(code,0,0); // <- dont hang
+
+        // conditional code in loop
+        code = "void f(int mask) {\n" // #6000
+               "  for (int x = 10; x < 14; x++) {\n"
+               "    int bit = mask & (1 << i);\n"
+               "    if (bit) {\n"
+               "      if (bit == (1 << 10)) {}\n"
+               "      else { a = x; }\n" // <- x is not 10
+               "    }\n"
+               "  }\n"
+               "}";
+        ASSERT_EQUALS(false, testValueOfX(code, 6U, 10));
+
     }
 
     void valueFlowSubFunction() {
@@ -1703,14 +1776,11 @@ private:
 
     bool isNotKnownValues(const char code[], const char str[]) {
         const std::list<ValueFlow::Value> values = tokenValues(code, str);
-        bool possible = false;
         for (std::list<ValueFlow::Value>::const_iterator it = values.begin(); it != values.end(); ++it) {
             if (it->isKnown())
                 return false;
-            if (it->isPossible())
-                possible = true;
         }
-        return possible;
+        return true;
     }
 
     void knownValue() {
@@ -1727,6 +1797,26 @@ private:
         value = valueOfTok(code, "+");
         ASSERT_EQUALS(3, value.intvalue);
         ASSERT(value.isKnown());
+
+        {
+            code = "void f() {\n"
+                   "  int x = 15;\n"
+                   "  if (x == 15) { x += 7; }\n" // <- condition is true
+                   "}";
+            value = valueOfTok(code, "==");
+            ASSERT_EQUALS(1, value.intvalue);
+            ASSERT(value.isKnown());
+
+            code = "int f() {\n"
+                   "    int a = 0, x = 0;\n"
+                   "    a = index();\n"
+                   "    if (a != 0)\n"
+                   "        x = next();\n"
+                   "    return x + 1;\n"
+                   "}\n";
+            value = valueOfTok(code, "+");
+            ASSERT(value.isPossible());
+        }
 
         code = "void f() {\n"
                "  int x;\n"
@@ -1827,16 +1917,6 @@ private:
 
         code = "void f() {\n"
                "  int x = 0;\n"
-               "  do {\n"
-               "    if (!x) { x = y; }\n" // <- possible value
-               "  } while (count < 10);\n"
-               "}";
-        value = valueOfTok(code, "!");
-        ASSERT_EQUALS(1, value.intvalue);
-        ASSERT(value.isPossible());
-
-        code = "void f() {\n"
-               "  int x = 0;\n"
                "a:\n"
                "  a = x + 1;\n" // <- possible value
                "}";
@@ -1853,6 +1933,20 @@ private:
         ASSERT_EQUALS(5, value.intvalue);
         ASSERT(value.isPossible());
 
+        code = "int f(int x) {\n"
+               "  if (x < 2) {}\n"
+               "  else if (x >= 2) {}\n" // <- known value
+               "}";
+        value = valueOfTok(code, ">=");
+        ASSERT_EQUALS(1, value.intvalue);
+        ASSERT(value.isKnown());
+
+        code = "int f(int x) {\n"
+               "  if (x < 2) {}\n"
+               "  else if (x > 2) {}\n" // <- possible value
+               "}";
+        ASSERT(isNotKnownValues(code, ">"));
+
         // function
         code = "int f(int x) { return x + 1; }\n" // <- possible value
                "void a() { f(12); }\b";
@@ -1868,6 +1962,12 @@ private:
                "}";
         ASSERT_EQUALS(true,  testValueOfX(code, 3U, 1)); // value of x can be 1
         ASSERT_EQUALS(false, testValueOfX(code, 3U, 2)); // value of x can't be 2
+
+        // calculation with known result
+        code = "int f(int x) { a = x & 0; }"; // <- & is 0
+        value = valueOfTok(code, "&");
+        ASSERT_EQUALS(0, value.intvalue);
+        ASSERT(value.isKnown());
     }
 };
 

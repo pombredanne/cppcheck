@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -2400,6 +2400,20 @@ private:
                       "  memset(&a, 0, sizeof(a)); \n"
                       "}");
         ASSERT_EQUALS("[test.cpp:6]: (error) Using 'memset' on class that contains a reference.\n", errout.str());
+
+        // #7456
+        checkNoMemset("struct A {\n"
+                      "  A() {}\n"
+                      "  virtual ~A() {}\n"
+                      "};\n"
+                      "struct B {\n"
+                      "  A* arr[4];\n"
+                      "};\n"
+                      "void func() {\n"
+                      "  B b[4];\n"
+                      "  memset(b, 0, sizeof(b));\n"
+                      "}");
+        ASSERT_EQUALS("", errout.str());
     }
 
     void memsetOnInvalid() { // Ticket #5425
@@ -4854,8 +4868,9 @@ private:
                    "private:\n"
                    "  MyGUI::IntCoord mCoordValue;\n"
                    "};");
-        ASSERT_EQUALS("[test.cpp:7]: (performance, inconclusive) Technically the member function 'MyGUI::types::TCoord::size' can be static.\n"
-                      "[test.cpp:15]: (style, inconclusive) Technically the member function 'SelectorControl::getSize' can be const.\n", errout.str());
+        TODO_ASSERT_EQUALS("[test.cpp:7]: (performance, inconclusive) Technically the member function 'MyGUI::types::TCoord::size' can be static.\n"
+                           "[test.cpp:15]: (style, inconclusive) Technically the member function 'SelectorControl::getSize' can be const.\n",
+                           "[test.cpp:7]: (performance, inconclusive) Technically the member function 'MyGUI::types::TCoord::size' can be static.\n", errout.str());
 
         checkConst("struct Foo {\n"
                    "    Bar b;\n"

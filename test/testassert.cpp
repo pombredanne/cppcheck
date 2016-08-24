@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -217,6 +217,15 @@ private:
               "    return a;\n"
               "}\n");
         ASSERT_EQUALS("[test.cpp:3]: (warning) Assert statement modifies 'a'.\n", errout.str());
+
+        check("void f() {\n"
+              "  assert(std::all_of(first, last, []() {\n"
+              "                  auto tmp = x.someValue();\n"
+              "                  auto const expected = someOtherValue;\n"
+              "                  return tmp == expected;\n"
+              "                }));\n"
+              "}\n");
+        ASSERT_EQUALS("", errout.str());
     }
 };
 

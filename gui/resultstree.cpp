@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -45,6 +45,8 @@
 #include "report.h"
 #include "application.h"
 #include "showtypes.h"
+#include "threadhandler.h"
+#include "path.h"
 
 ResultsTree::ResultsTree(QWidget * parent) :
     QTreeView(parent),
@@ -74,10 +76,11 @@ void ResultsTree::keyPressEvent(QKeyEvent *event)
     QTreeView::keyPressEvent(event);
 }
 
-void ResultsTree::Initialize(QSettings *settings, ApplicationList *list)
+void ResultsTree::Initialize(QSettings *settings, ApplicationList *list, ThreadHandler *checkThreadHandler)
 {
     mSettings = settings;
     mApplications = list;
+    mThread = checkThreadHandler;
     LoadSettings();
 }
 
@@ -168,7 +171,7 @@ bool ResultsTree::AddErrorItem(const ErrorItem &item)
     data["line"]  = item.lines[0];
     data["id"]  = item.errorId;
     data["inconclusive"] = item.inconclusive;
-    data["file0"] = item.file0;
+    data["file0"] = StripPath(item.file0, true);
     stditem->setData(QVariant(data));
 
     //Add backtrace files as children
@@ -331,6 +334,24 @@ void ResultsTree::Clear(const QString &filename)
         QVariantMap data = item->data().toMap();
         if (stripped == data["file"].toString() ||
             filename == data["file0"].toString()) {
+            mModel.removeRow(i);
+            break;
+        }
+    }
+}
+
+void ResultsTree::ClearRecheckFile(const QString &filename)
+{
+    for (int i = 0; i < mModel.rowCount(); ++i) {
+        const QStandardItem *item = mModel.item(i, 0);
+        if (!item)
+            continue;
+
+        QString actualfile((!mCheckPath.isEmpty() && filename.startsWith(mCheckPath)) ? filename.mid(mCheckPath.length() + 1) : filename);
+        QVariantMap data = item->data().toMap();
+        QString storedfile = data["file"].toString();
+        storedfile = ((!mCheckPath.isEmpty() && storedfile.startsWith(mCheckPath)) ? storedfile.mid(mCheckPath.length() + 1) : storedfile);
+        if (actualfile == storedfile) {
             mModel.removeRow(i);
             break;
         }
@@ -520,26 +541,26 @@ void ResultsTree::contextMenuEvent(QContextMenuEvent * e)
         QSignalMapper *signalMapper = new QSignalMapper(this);
 
         if (mContextItem && mApplications->GetApplicationCount() > 0 && mContextItem->parent()) {
-            //Go through all applications and add them to the context menu
-            for (int i = 0; i < mApplications->GetApplicationCount(); i++) {
-                //Create an action for the application
-                const Application& app = mApplications->GetApplication(i);
-                QAction *start = new QAction(app.getName(), &menu);
-                if (multipleSelection)
-                    start->setDisabled(true);
+            //Create an action for the application
+            int defaultApplicationIndex = mApplications->GetDefaultApplication();
+            if (defaultApplicationIndex < 0)
+                defaultApplicationIndex = 0;
+            const Application& app = mApplications->GetApplication(defaultApplicationIndex);
+            QAction *start = new QAction(app.getName(), &menu);
+            if (multipleSelection)
+                start->setDisabled(true);
 
-                //Add it to our list so we can disconnect later on
-                actions << start;
+            //Add it to our list so we can disconnect later on
+            actions << start;
 
-                //Add it to context menu
-                menu.addAction(start);
+            //Add it to context menu
+            menu.addAction(start);
 
-                //Connect the signal to signal mapper
-                connect(start, SIGNAL(triggered()), signalMapper, SLOT(map()));
+            //Connect the signal to signal mapper
+            connect(start, SIGNAL(triggered()), signalMapper, SLOT(map()));
 
-                //Add a new mapping
-                signalMapper->setMapping(start, i);
-            }
+            //Add a new mapping
+            signalMapper->setMapping(start, defaultApplicationIndex);
 
             connect(signalMapper, SIGNAL(mapped(int)),
                     this, SLOT(Context(int)));
@@ -552,6 +573,7 @@ void ResultsTree::contextMenuEvent(QContextMenuEvent * e)
             }
 
             //Create an action for the application
+            QAction *recheckSelectedFiles   = new QAction(tr("Recheck"), &menu);
             QAction *copyfilename           = new QAction(tr("Copy filename"), &menu);
             QAction *copypath               = new QAction(tr("Copy full path"), &menu);
             QAction *copymessage            = new QAction(tr("Copy message"), &menu);
@@ -568,7 +590,12 @@ void ResultsTree::contextMenuEvent(QContextMenuEvent * e)
                 hideallid->setDisabled(true);
                 opencontainingfolder->setDisabled(true);
             }
+            if (mThread->IsChecking())
+                recheckSelectedFiles->setDisabled(true);
+            else
+                recheckSelectedFiles->setDisabled(false);
 
+            menu.addAction(recheckSelectedFiles);
             menu.addAction(copyfilename);
             menu.addAction(copypath);
             menu.addAction(copymessage);
@@ -577,6 +604,7 @@ void ResultsTree::contextMenuEvent(QContextMenuEvent * e)
             menu.addAction(hideallid);
             menu.addAction(opencontainingfolder);
 
+            connect(recheckSelectedFiles, SIGNAL(triggered()), this, SLOT(RecheckSelectedFiles()));
             connect(copyfilename, SIGNAL(triggered()), this, SLOT(CopyFilename()));
             connect(copypath, SIGNAL(triggered()), this, SLOT(CopyFullPath()));
             connect(copymessage, SIGNAL(triggered()), this, SLOT(CopyMessage()));
@@ -588,20 +616,22 @@ void ResultsTree::contextMenuEvent(QContextMenuEvent * e)
 
         //Start the menu
         menu.exec(e->globalPos());
+        index = indexAt(e->pos());
+        if (index.isValid()) {
+            mContextItem = mModel.itemFromIndex(index);
+            if (mContextItem && mApplications->GetApplicationCount() > 0 && mContextItem->parent()) {
+                //Disconnect all signals
+                for (int i = 0; i < actions.size(); i++) {
 
-        if (mContextItem && mApplications->GetApplicationCount() > 0 && mContextItem->parent()) {
-            //Disconnect all signals
-            for (int i = 0; i < actions.size(); i++) {
+                    disconnect(actions[i], SIGNAL(triggered()), signalMapper, SLOT(map()));
+                }
 
-                disconnect(actions[i], SIGNAL(triggered()), signalMapper, SLOT(map()));
+                disconnect(signalMapper, SIGNAL(mapped(int)),
+                           this, SLOT(Context(int)));
+                //And remove the signal mapper
+                delete signalMapper;
             }
-
-            disconnect(signalMapper, SIGNAL(mapped(int)),
-                       this, SLOT(Context(int)));
-            //And remove the signal mapper
-            delete signalMapper;
         }
-
     }
 }
 
@@ -781,8 +811,7 @@ void ResultsTree::HideResult()
         return;
 
     QModelIndexList selectedRows = mSelectionModel->selectedRows();
-    QModelIndex index;
-    foreach(index, selectedRows) {
+    foreach (QModelIndex index, selectedRows) {
         QStandardItem *item = mModel.itemFromIndex(index);
         //Set the "hide" flag for this item
         QVariantMap data = item->data().toMap();
@@ -792,6 +821,44 @@ void ResultsTree::HideResult()
         RefreshTree();
         emit ResultsHidden(true);
     }
+}
+
+void ResultsTree::RecheckSelectedFiles()
+{
+    if (!mSelectionModel)
+        return;
+
+    QModelIndexList selectedRows = mSelectionModel->selectedRows();
+    QStringList selectedItems;
+    foreach (QModelIndex index, selectedRows) {
+        QStandardItem *item = mModel.itemFromIndex(index);
+        while (item->parent())
+            item = item->parent();
+        QVariantMap data = item->data().toMap();
+        QString currentFile = data["file"].toString();
+        if (!currentFile.isEmpty()) {
+            QString fileNameWithCheckPath;
+            QFileInfo curfileInfo(currentFile);
+            if (!curfileInfo.exists() && !mCheckPath.isEmpty() && currentFile.indexOf(mCheckPath) != 0)
+                fileNameWithCheckPath = mCheckPath + "/" + currentFile;
+            else
+                fileNameWithCheckPath = currentFile;
+            const QFileInfo fileInfo(fileNameWithCheckPath);
+            if (!fileInfo.exists()) {
+                AskFileDir(currentFile);
+                return;
+            }
+            if (Path::isHeader(currentFile.toStdString())) {
+                if (!data["file0"].toString().isEmpty() && !selectedItems.contains(data["file0"].toString())) {
+                    selectedItems<<((!mCheckPath.isEmpty() && (data["file0"].toString().indexOf(mCheckPath) != 0)) ? (mCheckPath + "/" + data["file0"].toString()) : data["file0"].toString());
+                    if (!selectedItems.contains(fileNameWithCheckPath))
+                        selectedItems<<fileNameWithCheckPath;
+                }
+            } else if (!selectedItems.contains(fileNameWithCheckPath))
+                selectedItems<<fileNameWithCheckPath;
+        }
+    }
+    emit CheckSelected(selectedItems);
 }
 
 void ResultsTree::HideAllIdResult()
@@ -992,6 +1059,12 @@ void ResultsTree::UpdateSettings(bool showFullPath,
 void ResultsTree::SetCheckDirectory(const QString &dir)
 {
     mCheckPath = dir;
+}
+
+
+QString ResultsTree::GetCheckDirectory(void)
+{
+    return mCheckPath;
 }
 
 QString ResultsTree::StripPath(const QString &path, bool saving) const

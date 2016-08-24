@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -95,17 +95,17 @@ private:
     void mathfunctionCallWarning(const Token *tok, const std::string& oldexp, const std::string& newexp);
 
     void getErrorMessages(ErrorLogger *errorLogger, const Settings *settings) const {
-        CheckFunctions c(0, settings, errorLogger);
+        CheckFunctions c(nullptr, settings, errorLogger);
 
         for (std::map<std::string, Library::WarnInfo>::const_iterator i = settings->library.functionwarn.cbegin(); i != settings->library.functionwarn.cend(); ++i) {
-            c.reportError(0, Severity::style, i->first+"Called", i->second.message);
+            c.reportError(nullptr, Severity::style, i->first+"Called", i->second.message);
         }
 
-        c.invalidFunctionArgError(0, "func_name", 1, "1-4");
-        c.invalidFunctionArgBoolError(0, "func_name", 1);
-        c.ignoredReturnValueError(0, "malloc");
-        c.mathfunctionCallWarning(0);
-        c.mathfunctionCallWarning(0, "1 - erf(x)", "erfc(x)");
+        c.invalidFunctionArgError(nullptr, "func_name", 1, "1-4");
+        c.invalidFunctionArgBoolError(nullptr, "func_name", 1);
+        c.ignoredReturnValueError(nullptr, "malloc");
+        c.mathfunctionCallWarning(nullptr);
+        c.mathfunctionCallWarning(nullptr, "1 - erf(x)", "erfc(x)");
     }
 
     static std::string myName() {

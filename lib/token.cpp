@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -65,7 +65,7 @@ void Token::update_property_info()
     if (!_str.empty()) {
         if (_str == "true" || _str == "false")
             _tokType = eBoolean;
-        else if (_str[0] == '_' || std::isalpha((unsigned char)_str[0])) { // Name
+        else if (std::isalpha((unsigned char)_str[0]) || _str[0] == '_' || _str[0] == '$') { // Name
             if (_varId)
                 _tokType = eVariable;
             else if (_tokType != eVariable && _tokType != eFunction && _tokType != eType && _tokType != eKeyword)
@@ -196,11 +196,17 @@ void Token::swapWithNext()
         std::swap(_flags, _next->_flags);
         std::swap(_varId, _next->_varId);
         std::swap(_fileIndex, _next->_fileIndex);
+        std::swap(_linenr, _next->_linenr);
+        if (_next->_link)
+            _next->_link->_link = this;
+        if (this->_link)
+            this->_link->_link = _next;
         std::swap(_link, _next->_link);
         std::swap(_scope, _next->_scope);
         std::swap(_function, _next->_function);
         std::swap(_originalName, _next->_originalName);
         std::swap(values, _next->values);
+        std::swap(valuetype, _next->valuetype);
         std::swap(_progressValue, _next->_progressValue);
     }
 }
@@ -217,13 +223,17 @@ void Token::deleteThis()
         _link = _next->_link;
         _scope = _next->_scope;
         _function = _next->_function;
-        _variable = _next->_variable;
-        _type = _next->_type;
         if (_next->_originalName) {
+            delete _originalName;
             _originalName = _next->_originalName;
             _next->_originalName = nullptr;
         }
         values = _next->values;
+        if (_next->valuetype) {
+            delete valuetype;
+            valuetype = _next->valuetype;
+            _next->valuetype = nullptr;
+        }
         if (_link)
             _link->link(this);
 
@@ -238,13 +248,17 @@ void Token::deleteThis()
         _link = _previous->_link;
         _scope = _previous->_scope;
         _function = _previous->_function;
-        _variable = _previous->_variable;
-        _type = _previous->_type;
         if (_previous->_originalName) {
+            delete _originalName;
             _originalName = _previous->_originalName;
             _previous->_originalName = nullptr;
         }
         values = _previous->values;
+        if (_previous->valuetype) {
+            delete valuetype;
+            valuetype = _previous->valuetype;
+            _previous->valuetype = nullptr;
+        }
         if (_link)
             _link->link(this);
 
@@ -296,13 +310,13 @@ void Token::replace(Token *replaceThis, Token *start, Token *end)
 const Token *Token::tokAt(int index) const
 {
     const Token *tok = this;
-    int num = std::abs(index);
-    while (num > 0 && tok) {
-        if (index > 0)
-            tok = tok->next();
-        else
-            tok = tok->previous();
-        --num;
+    while (index > 0 && tok) {
+        tok = tok->next();
+        --index;
+    }
+    while (index < 0 && tok) {
+        tok = tok->previous();
+        ++index;
     }
     return tok;
 }
@@ -322,7 +336,7 @@ const std::string &Token::strAt(int index) const
     return tok ? tok->_str : emptyString;
 }
 
-static int multiComparePercent(const Token *tok, const char*& haystack, bool emptyStringFound, unsigned int varid)
+static int multiComparePercent(const Token *tok, const char*& haystack, unsigned int varid)
 {
     ++haystack;
     // Compare only the first character of the string for optimization reasons
@@ -360,11 +374,18 @@ static int multiComparePercent(const Token *tok, const char*& haystack, bool emp
     }
     break;
     case 'a':
-        // Accept any token (%any%)
+        // Accept any token (%any%) or assign (%assign%)
     {
-        haystack += 4;
-        return 1;
+        if (haystack[3] == '%') { // %any%
+            haystack += 4;
+            return 1;
+        } else { // %assign%
+            haystack += 7;
+            if (tok->isAssignmentOp())
+                return 1;
+        }
     }
+    break;
     case 'n':
         // Number (%num%) or name (%name%)
     {
@@ -449,8 +470,6 @@ static int multiComparePercent(const Token *tok, const char*& haystack, bool emp
 
     if (*haystack == '|')
         haystack += 1;
-    else if (*haystack == ' ' || *haystack == '\0')
-        return emptyStringFound ? 0 : -1;
     else
         return -1;
 
@@ -459,22 +478,17 @@ static int multiComparePercent(const Token *tok, const char*& haystack, bool emp
 
 int Token::multiCompare(const Token *tok, const char *haystack, unsigned int varid)
 {
-    bool emptyStringFound = false;
     const char *needle = tok->str().c_str();
     const char *needlePointer = needle;
     for (;;) {
         if (needlePointer == needle && haystack[0] == '%' && haystack[1] != '|' && haystack[1] != '\0' && haystack[1] != ' ') {
-            int ret = multiComparePercent(tok, haystack, emptyStringFound, varid);
+            int ret = multiComparePercent(tok, haystack, varid);
             if (ret < 2)
                 return ret;
         } else if (*haystack == '|') {
             if (*needlePointer == 0) {
                 // If needle is at the end, we have a match.
                 return 1;
-            } else if (needlePointer == needle) {
-                // If needlePointer was not increased at all, we had a empty
-                // string in the haystack
-                emptyStringFound = true;
             }
 
             needlePointer = needle;
@@ -499,7 +513,7 @@ int Token::multiCompare(const Token *tok, const char *haystack, unsigned int var
             } while (*haystack != ' ' && *haystack != '|' && *haystack);
 
             if (*haystack == ' ' || *haystack == '\0') {
-                return emptyStringFound ? 0 : -1;
+                return -1;
             }
 
             ++haystack;
@@ -508,10 +522,6 @@ int Token::multiCompare(const Token *tok, const char *haystack, unsigned int var
 
     if (*needlePointer == '\0')
         return 1;
-
-    // If empty string was found earlier from the haystack
-    if (emptyStringFound)
-        return 0;
 
     return -1;
 }
@@ -804,9 +814,11 @@ const Token * Token::findClosingBracket() const
                 closing = closing->link();
                 if (!closing)
                     return nullptr; // #6803
-            } else if (Token::Match(closing, "}|]|)|;"))
+            } else if (Token::Match(closing, "}|]|)|;")) {
+                if (depth > 0)
+                    return nullptr;
                 break;
-            else if (closing->str() == "<")
+            } else if (closing->str() == "<")
                 ++depth;
             else if (closing->str() == ">") {
                 if (--depth == 0)
@@ -865,44 +877,6 @@ const Token *Token::findmatch(const Token *startTok, const char pattern[], const
             return tok;
     }
     return nullptr;
-}
-
-void Token::insertToken(const std::string &tokenStr, bool prepend)
-{
-    //TODO: Find a solution for the first token on the list
-    if (prepend && !this->previous())
-        return;
-    Token *newToken;
-    if (_str.empty())
-        newToken = this;
-    else
-        newToken = new Token(tokensBack);
-    newToken->str(tokenStr);
-    newToken->_linenr = _linenr;
-    newToken->_fileIndex = _fileIndex;
-    newToken->_progressValue = _progressValue;
-
-    if (newToken != this) {
-        if (prepend) {
-            /*if (this->previous())*/ {
-                newToken->previous(this->previous());
-                newToken->previous()->next(newToken);
-            } /*else if (tokensFront?) {
-                *tokensFront? = newToken;
-            }*/
-            this->previous(newToken);
-            newToken->next(this);
-        } else {
-            if (this->next()) {
-                newToken->next(this->next());
-                newToken->next()->previous(newToken);
-            } else if (tokensBack) {
-                *tokensBack = newToken;
-            }
-            this->next(newToken);
-            newToken->previous(this);
-        }
-    }
 }
 
 void Token::insertToken(const std::string &tokenStr, const std::string &originalNameStr, bool prepend)
@@ -1018,7 +992,7 @@ std::string Token::stringifyList(bool varid, bool attributes, bool linenumbers, 
 
     std::ostringstream ret;
 
-    unsigned int lineNumber = _linenr;
+    unsigned int lineNumber = _linenr - (linenumbers ? 1U : 0U);
     unsigned int fileInd = files ? ~0U : _fileIndex;
     std::map<int, unsigned int> lineNumbers;
     for (const Token *tok = this; tok != end; tok = tok->next()) {
@@ -1035,6 +1009,7 @@ std::string Token::stringifyList(bool varid, bool attributes, bool linenumbers, 
                     ret << fileNames->at(tok->_fileIndex);
                 else
                     ret << fileInd;
+                ret << '\n';
             }
 
             lineNumber = lineNumbers[fileInd];
@@ -1045,6 +1020,8 @@ std::string Token::stringifyList(bool varid, bool attributes, bool linenumbers, 
             if (lineNumber+4 < tok->linenr() && fileInd == tok->_fileIndex) {
                 ret << '\n' << lineNumber+1 << ":\n|\n";
                 ret << tok->linenr()-1 << ":\n";
+                ret << tok->linenr() << ": ";
+            } else if (this == tok && linenumbers) {
                 ret << tok->linenr() << ": ";
             } else {
                 while (lineNumber < tok->linenr()) {
@@ -1064,7 +1041,7 @@ std::string Token::stringifyList(bool varid, bool attributes, bool linenumbers, 
         if (tok->next() != end && (!linebreaks || (tok->next()->linenr() <= tok->linenr() && tok->next()->fileIndex() == tok->fileIndex())))
             ret << ' ';
     }
-    if (linebreaks && files)
+    if (linebreaks && (files || linenumbers))
         ret << '\n';
     return ret.str();
 }
@@ -1178,7 +1155,8 @@ std::string Token::expressionString() const
         start = start->astOperand1();
     const Token *end = top;
     while (end->astOperand1() && (end->astOperand2() || end->isUnaryPreOp())) {
-        if (Token::Match(end,"(|[")) {
+        if (Token::Match(end,"(|[") &&
+            !(Token::Match(end, "( %type%") && !end->astOperand2())) {
             end = end->link();
             break;
         }
@@ -1286,8 +1264,11 @@ std::string Token::astStringVerbose(const unsigned int indent1, const unsigned i
     std::string ret;
 
     if (isExpandedMacro())
-        ret += "$";
-    ret += _str + "\n";
+        ret += '$';
+    ret += _str;
+    if (valuetype)
+        ret += " \'" + valuetype->str() + '\'';
+    ret += '\n';
 
     if (_astOperand1) {
         unsigned int i1 = indent1, i2 = indent2 + 2;
@@ -1493,5 +1474,15 @@ void Token::setValueType(ValueType *vt)
         delete valuetype;
         valuetype = vt;
     }
+}
+
+void Token::type(const ::Type *t)
+{
+    _type = t;
+    if (t) {
+        _tokType = eType;
+        isEnumType(_type->isEnumType());
+    } else if (_tokType == eType)
+        _tokType = eName;
 }
 

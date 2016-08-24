@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,10 +29,14 @@ class Token;
 
 /** Is expression a 'signed char' if no promotion is used */
 bool astIsSignedChar(const Token *tok);
+/** Is expression a 'char' if no promotion is used? */
+bool astIsUnknownSignChar(const Token *tok);
 /** Is expression of integral type? */
 bool astIsIntegral(const Token *tok, bool unknown);
 /** Is expression of floating point type? */
 bool astIsFloat(const Token *tok, bool unknown);
+/** Is expression of boolean type? */
+bool astIsBool(const Token *tok);
 
 /**
  * Get canonical type of expression. const/static/etc are not included and neither *&.
@@ -48,7 +52,7 @@ std::string astCanonicalType(const Token *expr);
 /** Is given syntax tree a variable comparison against value */
 const Token * astIsVariableComparison(const Token *tok, const std::string &comp, const std::string &rhs, const Token **vartok=nullptr);
 
-bool isSameExpression(bool cpp, const Token *tok1, const Token *tok2, const std::set<std::string> &constFunctions);
+bool isSameExpression(bool cpp, bool macro, const Token *tok1, const Token *tok2, const std::set<std::string> &constFunctions);
 
 /**
  * Are two conditions opposite
@@ -63,6 +67,9 @@ bool isOppositeCond(bool isNot, bool cpp, const Token * const cond1, const Token
 bool isConstExpression(const Token *tok, const std::set<std::string> &constFunctions);
 
 bool isWithoutSideEffects(bool cpp, const Token* tok);
+
+/** Is scope a return scope (scope will unconditionally return) */
+bool isReturnScope(const Token *endToken);
 
 /** Is variable changed in block of code? */
 bool isVariableChanged(const Token *start, const Token *end, const unsigned int varid);

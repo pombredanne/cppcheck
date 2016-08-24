@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -77,8 +77,6 @@ private:
         TEST_CASE(simplifyTypedef38);
         TEST_CASE(simplifyTypedef39);
         TEST_CASE(simplifyTypedef40);
-        TEST_CASE(simplifyTypedef41); // ticket #1488
-        TEST_CASE(simplifyTypedef42); // ticket #1506
         TEST_CASE(simplifyTypedef43); // ticket #1588
         TEST_CASE(simplifyTypedef44);
         TEST_CASE(simplifyTypedef45); // ticket #1613
@@ -89,7 +87,6 @@ private:
         TEST_CASE(simplifyTypedef50);
         TEST_CASE(simplifyTypedef51);
         TEST_CASE(simplifyTypedef52); // ticket #1782
-        TEST_CASE(simplifyTypedef53); // ticket #1801
         TEST_CASE(simplifyTypedef54); // ticket #1814
         TEST_CASE(simplifyTypedef55);
         TEST_CASE(simplifyTypedef56); // ticket #1829
@@ -134,7 +131,6 @@ private:
         TEST_CASE(simplifyTypedef95); // ticket #2844
         TEST_CASE(simplifyTypedef96); // ticket #2886
         TEST_CASE(simplifyTypedef97); // ticket #2983 (segmentation fault)
-        TEST_CASE(simplifyTypedef98); // ticket #2963
         TEST_CASE(simplifyTypedef99); // ticket #2999
         TEST_CASE(simplifyTypedef100); // ticket #3000
         TEST_CASE(simplifyTypedef101); // ticket #3003 (segmentation fault)
@@ -154,6 +150,7 @@ private:
         TEST_CASE(simplifyTypedef115); // ticket #6998
         TEST_CASE(simplifyTypedef116); // ticket #5624
         TEST_CASE(simplifyTypedef117); // ticket #6507
+        TEST_CASE(simplifyTypedef118); // ticket #5749
 
         TEST_CASE(simplifyTypedefFunction1);
         TEST_CASE(simplifyTypedefFunction2); // ticket #1685
@@ -169,7 +166,7 @@ private:
         TEST_CASE(simplifyTypedefShadow);  // #4445 - shadow variable
     }
 
-    std::string tok(const char code[], bool simplify = true, Settings::PlatformType type = Settings::Unspecified, bool debugwarnings = true) {
+    std::string tok(const char code[], bool simplify = true, Settings::PlatformType type = Settings::Native, bool debugwarnings = true) {
         errout.str("");
 
         settings0.inconclusive = true;
@@ -443,8 +440,10 @@ private:
                             "abc e1;\n"
                             "XYZ e2;";
 
-        const char expected[] = "int e1 ; "
-                                "int e2 ;";
+        const char expected[] = "enum abc { a = 0 , b = 1 , c = 2 } ; "
+                                "enum xyz { x = 0 , y = 1 , z = 2 } ; "
+                                "abc e1 ; "
+                                "enum xyz e2 ;";
 
         ASSERT_EQUALS(expected, tok(code, false));
     }
@@ -494,7 +493,7 @@ private:
                             "};";
 
         // Tokenize and check output..
-        tok(code, true, Settings::Unspecified, false);
+        tok(code, true, Settings::Native, false);
         ASSERT_EQUALS("", errout.str());
     }
 
@@ -961,6 +960,62 @@ private:
                             "A::B::C::INT_C A::B::C::funC() { return c; }"
                             "A::B::C::D::LONG_D A::B::C::D::funD() { return d; }";
 
+        const char codeFullSpecified[] = "class A {\n"
+                                         "public:\n"
+                                         "    typedef char CHAR_A;\n"
+                                         "    A::CHAR_A funA();\n"
+                                         "    class B {\n"
+                                         "    public:\n"
+                                         "        typedef short SHRT_B;\n"
+                                         "        A::B::SHRT_B funB();\n"
+                                         "        class C {\n"
+                                         "        public:\n"
+                                         "            typedef int INT_C;\n"
+                                         "            A::B::C::INT_C funC();\n"
+                                         "            struct D {\n"
+                                         "                typedef long LONG_D;\n"
+                                         "                A::B::C::D::LONG_D funD();\n"
+                                         "                A::B::C::D::LONG_D d;\n"
+                                         "            };\n"
+                                         "            A::B::C::INT_C c;\n"
+                                         "        };\n"
+                                         "        A::B::SHRT_B b;\n"
+                                         "    };\n"
+                                         "    A::CHAR_A a;\n"
+                                         "};\n"
+                                         "A::CHAR_A A::funA() { return a; }\n"
+                                         "A::B::SHRT_B A::B::funB() { return b; }\n"
+                                         "A::B::C::INT_C A::B::C::funC() { return c; }"
+                                         "A::B::C::D::LONG_D A::B::C::D::funD() { return d; }";
+
+        const char codePartialSpecified[] = "class A {\n"
+                                            "public:\n"
+                                            "    typedef char CHAR_A;\n"
+                                            "    CHAR_A funA();\n"
+                                            "    class B {\n"
+                                            "    public:\n"
+                                            "        typedef short SHRT_B;\n"
+                                            "        B::SHRT_B funB();\n"
+                                            "        class C {\n"
+                                            "        public:\n"
+                                            "            typedef int INT_C;\n"
+                                            "            C::INT_C funC();\n"
+                                            "            struct D {\n"
+                                            "                typedef long LONG_D;\n"
+                                            "                D::LONG_D funD();\n"
+                                            "                C::D::LONG_D d;\n"
+                                            "            };\n"
+                                            "            B::C::INT_C c;\n"
+                                            "        };\n"
+                                            "        B::SHRT_B b;\n"
+                                            "    };\n"
+                                            "    CHAR_A a;\n"
+                                            "};\n"
+                                            "A::CHAR_A A::funA() { return a; }\n"
+                                            "A::B::SHRT_B A::B::funB() { return b; }\n"
+                                            "A::B::C::INT_C A::B::C::funC() { return c; }"
+                                            "A::B::C::D::LONG_D A::B::C::D::funD() { return d; }";
+
         const char expected[] =
             "class A { "
             "public: "
@@ -991,6 +1046,8 @@ private:
             "long A :: B :: C :: D :: funD ( ) { return d ; }";
 
         ASSERT_EQUALS(expected, tok(code, false));
+        ASSERT_EQUALS(expected, tok(codePartialSpecified, false));
+        ASSERT_EQUALS(expected, tok(codeFullSpecified, false));
     }
 
     void simplifyTypedef34() {
@@ -1080,11 +1137,7 @@ private:
                                 "}";
 
         ASSERT_EQUALS(expected, tok(code, false));
-        ASSERT_EQUALS("[test.cpp:5] -> [test.cpp:1]: (style, inconclusive) The typedef 'A' hides a typedef with the same name.\n"
-                      "[test.cpp:20] -> [test.cpp:1]: (style, inconclusive) The function parameter 'A' hides a typedef with the same name.\n"
-                      "[test.cpp:21] -> [test.cpp:1]: (style, inconclusive) The variable 'A' hides a typedef with the same name.\n"
-                      "[test.cpp:24] -> [test.cpp:1]: (style, inconclusive) The typedef 'A' hides a typedef with the same name.\n"
-                      , errout.str());
+        ASSERT_EQUALS("", errout.str());
     }
 
     void simplifyTypedef36() {
@@ -1102,31 +1155,16 @@ private:
     }
 
     void simplifyTypedef37() {
-        {
-            // ticket #1449
-            const char code[] = "template <class T> class V {};\n"
-                                "typedef V<int> A;\n"
-                                "typedef int B;\n"
-                                "typedef V<int> A;\n"
-                                "typedef int B;";
-
-            checkSimplifyTypedef(code);
-            ASSERT_EQUALS("[test.cpp:4] -> [test.cpp:2]: (style, inconclusive) The typedef 'A' hides a typedef with the same name.\n"
-                          "[test.cpp:5] -> [test.cpp:3]: (style, inconclusive) The typedef 'B' hides a typedef with the same name.\n", errout.str());
-        }
-
-        {
-            const char code[] = "typedef int INT;\n"
-                                "void f()\n"
-                                "{\n"
-                                "    INT i; { }\n"
+        const char code[] = "typedef int INT;\n"
+                            "void f()\n"
+                            "{\n"
+                            "    INT i; { }\n"
+                            "}";
+        const char expected[] = "void f ( ) "
+                                "{ "
+                                "int i ; { } "
                                 "}";
-            const char expected[] = "void f ( ) "
-                                    "{ "
-                                    "int i ; { } "
-                                    "}";
-            ASSERT_EQUALS(expected, tok(code, false));
-        }
+        ASSERT_EQUALS(expected, tok(code, false));
     }
 
     void simplifyTypedef38() {
@@ -1151,79 +1189,7 @@ private:
                             "template <class A, class B> class C { };";
         const char expected[] = "template < class A , class B > class C { } ;";
         ASSERT_EQUALS(expected, tok(code, false));
-        ASSERT_EQUALS("[test.cpp:3] -> [test.cpp:1]: (style, inconclusive) The template parameter 'A' hides a typedef with the same name.\n"
-                      "[test.cpp:3] -> [test.cpp:2]: (style, inconclusive) The template parameter 'B' hides a typedef with the same name.\n", errout.str());
-
-        checkSimplifyTypedef("typedef tuple<double&, const double&, const double, double*, const double*> t2;\n"
-                             "void ordering_test()\n"
-                             "{\n"
-                             "  tuple<short, float> t2(5, 3.3f);\n"
-                             "  BOOST_CHECK(t3 > t2);\n"
-                             "}");
-        ASSERT_EQUALS("[test.cpp:4] -> [test.cpp:1]: (style, inconclusive) The template instantiation 't2' hides a typedef with the same name.\n", errout.str());
-
-        checkSimplifyTypedef("class MyOverflowingUnsigned\n"
-                             "{\n"
-                             "public:\n"
-                             "    typedef unsigned self_type::*  bool_type;\n"
-                             "    operator bool_type() const  { return this->v_ ? &self_type::v_ : 0; }\n"
-                             "}");
         ASSERT_EQUALS("", errout.str());
-
-        checkSimplifyTypedef("typedef int (*fptr_type)(int, int);\n"
-                             "struct which_one {\n"
-                             "  typedef fptr_type (*result_type)(bool x);\n"
-                             "}");
-        ASSERT_EQUALS("", errout.str());
-
-        checkSimplifyTypedef("class my_configuration\n"
-                             "{\n"
-                             "public:\n"
-                             "    template < typename T >\n"
-                             "    class hook\n"
-                             "    {\n"
-                             "    public:\n"
-                             "        typedef ::boost::rational<T>  rational_type;\n"
-                             "    public:\n"
-                             "        rational_type  ( &r_ )[ 9 ];\n"
-                             "    };\n"
-                             "}");
-        ASSERT_EQUALS("", errout.str());
-
-        checkSimplifyTypedef("class A\n"
-                             "{\n"
-                             "    typedef B b;\n"
-                             "    friend b;\n"
-                             "};");
-        ASSERT_EQUALS("", errout.str());
-    }
-
-    void simplifyTypedef41() {
-        // ticket #1488
-        checkSimplifyTypedef("class Y;\n"
-                             "class X\n"
-                             "{\n"
-                             "    typedef Y type;\n"
-                             "    friend class type;\n"
-                             "};");
-        ASSERT_EQUALS("", errout.str());
-    }
-
-    void simplifyTypedef42() {
-        // ticket #1506
-        checkSimplifyTypedef("typedef struct A { } A;\n"
-                             "struct A;");
-        ASSERT_EQUALS("[test.cpp:2] -> [test.cpp:1]: (style) The struct 'A' forward declaration is unnecessary. Type struct is already declared earlier.\n", errout.str());
-
-        checkSimplifyTypedef("typedef union A { int i; float f; } A;\n"
-                             "union A;");
-        ASSERT_EQUALS("[test.cpp:2] -> [test.cpp:1]: (style) The union 'A' forward declaration is unnecessary. Type union is already declared earlier.\n", errout.str());
-
-        const char code [] = "typedef std::map<std::string, int> A;\n"
-                             "class A;";
-        checkSimplifyTypedef(code);
-        ASSERT_EQUALS("[test.cpp:2] -> [test.cpp:1]: (style) The class 'A' forward declaration is unnecessary. Type class is already declared earlier.\n", errout.str());
-        TODO_ASSERT_EQUALS("class A ;", "class std :: map < std :: string , int > ;", tok(code));
     }
 
     void simplifyTypedef43() {
@@ -1241,7 +1207,7 @@ private:
                                     "int alloclen ; "
                                     "} ;";
             ASSERT_EQUALS(expected, tok(code));
-            ASSERT_EQUALS("[test.cpp:2] -> [test.cpp:1]: (style, inconclusive) The struct 'A' hides a typedef with the same name.\n", errout.str());
+            ASSERT_EQUALS("", errout.str());
         }
 
         {
@@ -1257,7 +1223,7 @@ private:
                                     "int alloclen ; "
                                     "} ;";
             ASSERT_EQUALS(expected, tok(code));
-            ASSERT_EQUALS("[test.cpp:2] -> [test.cpp:1]: (style, inconclusive) The union 'A' hides a typedef with the same name.\n", errout.str());
+            ASSERT_EQUALS("", errout.str());
         }
 
         {
@@ -1273,7 +1239,7 @@ private:
                                     "int alloclen ; "
                                     "} ;";
             ASSERT_EQUALS(expected, tok(code));
-            ASSERT_EQUALS("[test.cpp:2] -> [test.cpp:1]: (style, inconclusive) The class 'A' hides a typedef with the same name.\n", errout.str());
+            ASSERT_EQUALS("", errout.str());
         }
     }
 
@@ -1476,31 +1442,6 @@ private:
         }
     }
 
-    void simplifyTypedef53() { // ticket #1801
-        {
-            const char code[] = "typedef int ( * int ( * ) ( ) ) ( ) ;";
-
-            // this is invalid C so just make sure it doesn't crash
-            checkSimplifyTypedef(code);
-            ASSERT_EQUALS("[test.cpp:1]: (debug) Failed to parse 'typedef int ( * int ( * ) ( ) ) ( ) ;'. The checking continues anyway.\n", errout.str());
-        }
-
-        {
-            const char code[] = "typedef int (*PPDMarkOption)(ppd_file_t *ppd, const char *keyword, const char *option);\n"
-                                "typedef int (*PPDMarkOption)(ppd_file_t *ppd, const char *keyword, const char *option);";
-
-            checkSimplifyTypedef(code);
-            ASSERT_EQUALS("[test.cpp:2] -> [test.cpp:1]: (style, inconclusive) The typedef 'PPDMarkOption' hides a typedef with the same name.\n", errout.str());
-        }
-
-        {
-            const char code[] = "typedef int * A;\n"
-                                "typedef int * A;";
-            checkSimplifyTypedef(code);
-            ASSERT_EQUALS("[test.cpp:2] -> [test.cpp:1]: (style, inconclusive) The typedef 'A' hides a typedef with the same name.\n", errout.str());
-        }
-    }
-
     void simplifyTypedef54() { // ticket #1814
         const char code[] = "void foo()\n"
                             "{\n"
@@ -1528,9 +1469,9 @@ private:
                             "_Iterator v3;";
 
         // The expected result..
-        const char expected[] = "long * v1 ; "
-                                "void * v2 [ 2 ] ; "
-                                "int * * v3 ;";
+        const char expected[] = "long * const v1 ; "
+                                "void * const v2 [ 2 ] ; "
+                                "int * const * v3 ;";
         ASSERT_EQUALS(expected, tok(code));
 
         // Check for output..
@@ -1611,7 +1552,7 @@ private:
                             "    localEntitiyAddFunc_t f;\n"
                             "}";
         // The expected result..
-        const char expected[] = "void f ( ) { int b ; int * f ; }";
+        const char expected[] = "enum qboolean { qfalse , qtrue } ; void f ( ) { qboolean b ; qboolean * f ; }";
         ASSERT_EQUALS(expected, tok(code, false));
         ASSERT_EQUALS("", errout.str());
     }
@@ -1700,7 +1641,7 @@ private:
                             "    Foo b(0);\n"
                             "    return b > Foo(10);\n"
                             "}";
-        const std::string actual(tok(code, true, Settings::Unspecified, false));
+        const std::string actual(tok(code, true, Settings::Native, false));
         ASSERT_EQUALS("int main ( ) { BAR < int > b ( 0 ) ; return b > BAR < int > ( 10 ) ; }", actual);
         ASSERT_EQUALS("", errout.str());
     }
@@ -1856,14 +1797,14 @@ private:
 
     void simplifyTypedef75() { // ticket #2426
         const char code[] = "typedef _Packed struct S { long l; };";
-        ASSERT_EQUALS("", tok(code, true, Settings::Unspecified, false));
+        ASSERT_EQUALS("", tok(code, true, Settings::Native, false));
         ASSERT_EQUALS("", errout.str());
     }
 
     void simplifyTypedef76() { // ticket #2453 segmentation fault
         const char code[] = "void f1(typedef int x) {}";
         const char expected[] = "void f1 ( typedef int x ) { }";
-        ASSERT_EQUALS(expected, tok(code, true, Settings::Unspecified, false));
+        ASSERT_EQUALS(expected, tok(code, true, Settings::Native, false));
         ASSERT_EQUALS("", errout.str());
     }
 
@@ -2182,7 +2123,7 @@ private:
                                 "public: "
                                 "expression_error :: error_code * f ; "
                                 "} ;";
-        ASSERT_EQUALS(expected, tok(code, true, Settings::Unspecified, false));
+        ASSERT_EQUALS(expected, tok(code, true, Settings::Native, false));
         ASSERT_EQUALS("", errout.str());
     }
 
@@ -2196,14 +2137,6 @@ private:
                             "(A); y";
         tok(code);
         ASSERT_EQUALS("", errout.str());
-    }
-
-    void simplifyTypedef98() { // ticket #2963
-        const char code[] = "typedef int type ## __LINE__;\n"
-                            "typedef int type ## __LINE__;\n"
-                            "type1 x;\n"
-                            "type2 y;";
-        ASSERT_EQUALS("int x ; int y ;", tok(code));
     }
 
     void simplifyTypedef99() { // ticket #2999
@@ -2355,7 +2288,7 @@ private:
                                 "} ; "
                                 "} "
                                 "}";
-        ASSERT_EQUALS(expected, tok(code, true, Settings::Unspecified, false));
+        ASSERT_EQUALS(expected, tok(code, true, Settings::Native, false));
         ASSERT_EQUALS("", errout.str());
     }
 
@@ -2406,7 +2339,14 @@ private:
                             "    };\n"
                             "};";
 
-        const char expected[] = "template < typename DataType , typename SpaceType , typename TrafoConfig > class AsmTraits1 { } ;";
+        const char expected[] = "template < "
+                                "typename DataType , "
+                                "typename SpaceType , "
+                                "typename TrafoConfig > "
+                                "class AsmTraits1 { "
+                                "enum Anonymous0 { "
+                                "domain_dim = SpaceType :: TrafoType :: template Evaluator < SpaceType :: TrafoType :: ShapeType , DataType > :: Type :: domain_dim , "
+                                "} ; } ;";
         ASSERT_EQUALS(expected, tok(code));
         ASSERT_EQUALS("", errout.str());
     }
@@ -2421,7 +2361,7 @@ private:
     void simplifyTypedef114() {     // ticket #7058
         const char code[] = "typedef struct { enum {A,B}; } AB;\n"
                             "x=AB::B;";
-        const char expected[] = "struct AB { } ; x = 1 ;";
+        const char expected[] = "struct AB { enum Anonymous0 { A , B } ; } ; x = AB :: B ;";
         ASSERT_EQUALS(expected, tok(code));
     }
 
@@ -2460,6 +2400,22 @@ private:
                                 "struct bstr bstr0 ( const char * s ) { "
                                 "return ( struct bstr ) { ( unsigned char * ) s , s ? strlen ( s ) : 0 } ; "
                                 "}";
+        ASSERT_EQUALS(expected, tok(code, false));
+        ASSERT_EQUALS("", errout.str());
+    }
+
+    void simplifyTypedef118() { // #5749
+        const char code[] = "struct ClassyClass {\n"
+                            "int id;\n"
+                            "typedef int (ClassyClass::*funky_type);\n"
+                            "operator funky_type() {\n"
+                            "return &ClassyClass::id;\n"
+                            "}}";
+        const char expected[] = "struct ClassyClass { "
+                                "int id ; "
+                                "operatorintClassyClass::* ( ) { "
+                                "return & ClassyClass :: id ; "
+                                "} }";
         ASSERT_EQUALS(expected, tok(code, false));
         ASSERT_EQUALS("", errout.str());
     }
@@ -2704,7 +2660,7 @@ private:
                                     "C * f5 ; " // this gets simplified to a regular pointer
                                     "C * f6 ; " // this gets simplified to a regular pointer
                                     "C * f7 ;"; // this gets simplified to a regular pointer
-            ASSERT_EQUALS(expected, tok(code, true, Settings::Unspecified, false));
+            ASSERT_EQUALS(expected, tok(code, true, Settings::Native, false));
             ASSERT_EQUALS("", errout.str());
         }
 
@@ -2733,7 +2689,7 @@ private:
                                     "const C * f5 ; " // this gets simplified to a regular pointer
                                     "const C * f6 ; " // this gets simplified to a regular pointer
                                     "const C * f7 ;"; // this gets simplified to a regular pointer
-            ASSERT_EQUALS(expected, tok(code, true, Settings::Unspecified, false));
+            ASSERT_EQUALS(expected, tok(code, true, Settings::Native, false));
             ASSERT_EQUALS("", errout.str());
         }
 
@@ -2761,7 +2717,7 @@ private:
                                     "const C * f5 ; " // this gets simplified to a regular pointer
                                     "const C * f6 ; " // this gets simplified to a regular pointer
                                     "const C * f7 ;"; // this gets simplified to a regular pointer
-            ASSERT_EQUALS(expected, tok(code, true, Settings::Unspecified, false));
+            ASSERT_EQUALS(expected, tok(code, true, Settings::Native, false));
             ASSERT_EQUALS("", errout.str());
         }
 
@@ -2789,7 +2745,7 @@ private:
                                     "C * * f5 ; " // this gets simplified to a regular pointer
                                     "C * * f6 ; " // this gets simplified to a regular pointer
                                     "C * * f7 ;"; // this gets simplified to a regular pointer
-            ASSERT_EQUALS(expected, tok(code, true, Settings::Unspecified, false));
+            ASSERT_EQUALS(expected, tok(code, true, Settings::Native, false));
             ASSERT_EQUALS("", errout.str());
         }
 
@@ -2817,7 +2773,7 @@ private:
                                     "const C * * f5 ; " // this gets simplified to a regular pointer
                                     "const C * * f6 ; " // this gets simplified to a regular pointer
                                     "const C * * f7 ;"; // this gets simplified to a regular pointer
-            ASSERT_EQUALS(expected, tok(code, true, Settings::Unspecified, false));
+            ASSERT_EQUALS(expected, tok(code, true, Settings::Native, false));
             ASSERT_EQUALS("", errout.str());
         }
 
@@ -2846,7 +2802,7 @@ private:
                                     "const C * * f5 ; " // this gets simplified to a regular pointer
                                     "const C * * f6 ; " // this gets simplified to a regular pointer
                                     "const C * * f7 ;"; // this gets simplified to a regular pointer
-            ASSERT_EQUALS(expected, tok(code, true, Settings::Unspecified, false));
+            ASSERT_EQUALS(expected, tok(code, true, Settings::Native, false));
             ASSERT_EQUALS("", errout.str());
         }
     }
@@ -2951,7 +2907,7 @@ private:
     void simplifyTypedefFunction8() {
         // #2376 - internal error
         const char code[] = "typedef int f_expand(const nrv_byte *);\n"
-                            "void f(f_expand   *(*get_fexp(int))){}";
+                            "void f(f_expand *(*get_fexp(int))){}";
         checkSimplifyTypedef(code);
         TODO_ASSERT_EQUALS("", "[test.cpp:2]: (debug) Function::addArguments found argument 'int' with varid 0.\n", errout.str());  // make sure that there is no internal error
     }
@@ -2991,7 +2947,7 @@ private:
                                     "B :: C * f2 ; "
                                     "B :: C * f3 ; "
                                     "B :: C * f4 ;";
-            ASSERT_EQUALS(expected, tok(code, true, Settings::Unspecified, false));
+            ASSERT_EQUALS(expected, tok(code, true, Settings::Native, false));
             ASSERT_EQUALS("", errout.str());
         }
 
@@ -3029,27 +2985,26 @@ private:
                                     "A :: B :: C * f2 ; "
                                     "A :: B :: C * f3 ; "
                                     "A :: B :: C * f4 ;";
-            ASSERT_EQUALS(expected, tok(code, true, Settings::Unspecified, false));
+            ASSERT_EQUALS(expected, tok(code, true, Settings::Native, false));
             ASSERT_EQUALS("", errout.str());
         }
     }
 
     void simplifyTypedefFunction10() {
-        const char code[] = "enum Format_E1 { FORMAT11 FORMAT12 } Format_T1;\n"
+        const char code[] = "enum Format_E1 { FORMAT11, FORMAT12 } Format_T1;\n"
                             "namespace MySpace {\n"
-                            "   enum Format_E2 { FORMAT21 FORMAT22 } Format_T2;\n"
+                            "   enum Format_E2 { FORMAT21, FORMAT22 } Format_T2;\n"
                             "}\n"
                             "typedef Format_E1 (**PtrToFunPtr_Type1)();\n"
                             "typedef MySpace::Format_E2 (**PtrToFunPtr_Type2)();\n"
                             "PtrToFunPtr_Type1 t1;\n"
                             "PtrToFunPtr_Type2 t2;";
-        ASSERT_EQUALS("int Format_T1 ; "
-                      "namespace MySpace "
-                      "{ "
-                      "int Format_T2 ; "
+        ASSERT_EQUALS("enum Format_E1 { FORMAT11 , FORMAT12 } ; enum Format_E1 Format_T1 ; "
+                      "namespace MySpace { "
+                      "enum Format_E2 { FORMAT21 , FORMAT22 } ; enum Format_E2 Format_T2 ; "
                       "} "
-                      "int * * t1 ; "
-                      "int * * t2 ;",
+                      "Format_E1 * * t1 ; "
+                      "MySpace :: Format_E2 * * t2 ;",
                       tok(code,false));
     }
 

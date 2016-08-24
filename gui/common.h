@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -84,6 +84,7 @@
 #define SETTINGS_INCONCLUSIVE_ERRORS    "Inconclusive errors"
 #define SETTINGS_MRU_PROJECTS           "MRU Projects"
 #define SETTINGS_SHOW_ERROR_ID          "Show error Id"
+#define SETTINGS_SHOW_STATISTICS        "Show statistics"
 
 // The maximum value for the progress bar
 #define PROGRESS_MAX                    1024.0

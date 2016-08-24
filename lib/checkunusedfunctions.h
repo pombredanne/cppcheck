@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -58,7 +58,7 @@ public:
 private:
 
     void getErrorMessages(ErrorLogger *errorLogger, const Settings *settings) const {
-        CheckUnusedFunctions c(0, settings, errorLogger);
+        CheckUnusedFunctions c(nullptr, settings, errorLogger);
         c.unusedFunctionError(errorLogger, "", 0, "funcName");
     }
 

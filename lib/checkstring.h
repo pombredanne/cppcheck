@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -49,6 +49,7 @@ public:
         // Checks
         checkString.strPlusChar();
         checkString.checkSuspiciousStringCompare();
+        checkString.stringLiteralWrite();
     }
 
     /** @brief Run checks against the simplified token list */
@@ -59,7 +60,6 @@ public:
         checkString.checkIncorrectStringCompare();
         checkString.checkAlwaysTrueOrFalseStringCompare();
         checkString.sprintfOverlappingData();
-        checkString.stringLiteralWrite();
     }
 
     /** @brief undefined behaviour, writing string literal */
@@ -92,17 +92,17 @@ private:
     void suspiciousStringCompareError_char(const Token* tok, const std::string& var);
 
     void getErrorMessages(ErrorLogger *errorLogger, const Settings *settings) const {
-        CheckString c(0, settings, errorLogger);
+        CheckString c(nullptr, settings, errorLogger);
 
-        c.stringLiteralWriteError(0,0);
-        c.sprintfOverlappingDataError(0, "varname");
-        c.strPlusCharError(0);
-        c.incorrectStringCompareError(0, "substr", "\"Hello World\"");
-        c.suspiciousStringCompareError(0, "foo");
-        c.suspiciousStringCompareError_char(0, "foo");
-        c.incorrectStringBooleanError(0, "\"Hello World\"");
-        c.alwaysTrueFalseStringCompareError(0, "str1", "str2");
-        c.alwaysTrueStringVariableCompareError(0, "varname1", "varname2");
+        c.stringLiteralWriteError(nullptr,0);
+        c.sprintfOverlappingDataError(nullptr, "varname");
+        c.strPlusCharError(nullptr);
+        c.incorrectStringCompareError(nullptr, "substr", "\"Hello World\"");
+        c.suspiciousStringCompareError(nullptr, "foo");
+        c.suspiciousStringCompareError_char(nullptr, "foo");
+        c.incorrectStringBooleanError(nullptr, "\"Hello World\"");
+        c.alwaysTrueFalseStringCompareError(nullptr, "str1", "str2");
+        c.alwaysTrueStringVariableCompareError(nullptr, "varname1", "varname2");
     }
 
     static std::string myName() {

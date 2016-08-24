@@ -24,7 +24,7 @@ distribution.
 #include "tinyxml2.h"
 
 #include <new>		// yes, this one new style header, is in the Android SDK.
-#if defined(ANDROID_NDK) || defined(__QNXNTO__)
+#if defined(ANDROID_NDK) || defined(__BORLANDC__) || defined(__QNXNTO__)
 #   include <stddef.h>
 #   include <stdarg.h>
 #else
@@ -177,6 +177,7 @@ void StrPair::Reset()
 
 void StrPair::SetStr( const char* str, int flags )
 {
+    TIXMLASSERT( str );
     Reset();
     size_t len = strlen( str );
     TIXMLASSERT( _start == 0 );
@@ -470,7 +471,7 @@ const char* XMLUtil::GetCharacterRef( const char* p, char* value, int* length )
                 else {
                     return 0;
                 }
-                TIXMLASSERT( digit >= 0 && digit < 16);
+                TIXMLASSERT( digit < 16 );
                 TIXMLASSERT( digit == 0 || mult <= UINT_MAX / digit );
                 const unsigned int digitScaled = mult * digit;
                 TIXMLASSERT( ucs <= ULONG_MAX - digitScaled );
@@ -500,7 +501,7 @@ const char* XMLUtil::GetCharacterRef( const char* p, char* value, int* length )
             while ( *q != '#' ) {
                 if ( *q >= '0' && *q <= '9' ) {
                     const unsigned int digit = *q - '0';
-                    TIXMLASSERT( digit >= 0 && digit < 10);
+                    TIXMLASSERT( digit < 10 );
                     TIXMLASSERT( digit == 0 || mult <= UINT_MAX / digit );
                     const unsigned int digitScaled = mult * digit;
                     TIXMLASSERT( ucs <= ULONG_MAX - digitScaled );
@@ -775,6 +776,7 @@ void XMLNode::DeleteChild( XMLNode* node )
     TIXMLASSERT( node );
     TIXMLASSERT( node->_document == _document );
     TIXMLASSERT( node->_parent == this );
+    Unlink( node );
     DeleteNode( node );
 }
 
@@ -1284,7 +1286,7 @@ void XMLAttribute::SetName( const char* n )
 XMLError XMLAttribute::QueryIntValue( int* value ) const
 {
     if ( XMLUtil::ToInt( Value(), value )) {
-        return XML_NO_ERROR;
+        return XML_SUCCESS;
     }
     return XML_WRONG_ATTRIBUTE_TYPE;
 }
@@ -1293,7 +1295,7 @@ XMLError XMLAttribute::QueryIntValue( int* value ) const
 XMLError XMLAttribute::QueryUnsignedValue( unsigned int* value ) const
 {
     if ( XMLUtil::ToUnsigned( Value(), value )) {
-        return XML_NO_ERROR;
+        return XML_SUCCESS;
     }
     return XML_WRONG_ATTRIBUTE_TYPE;
 }
@@ -1302,7 +1304,7 @@ XMLError XMLAttribute::QueryUnsignedValue( unsigned int* value ) const
 XMLError XMLAttribute::QueryBoolValue( bool* value ) const
 {
     if ( XMLUtil::ToBool( Value(), value )) {
-        return XML_NO_ERROR;
+        return XML_SUCCESS;
     }
     return XML_WRONG_ATTRIBUTE_TYPE;
 }
@@ -1311,7 +1313,7 @@ XMLError XMLAttribute::QueryBoolValue( bool* value ) const
 XMLError XMLAttribute::QueryFloatValue( float* value ) const
 {
     if ( XMLUtil::ToFloat( Value(), value )) {
-        return XML_NO_ERROR;
+        return XML_SUCCESS;
     }
     return XML_WRONG_ATTRIBUTE_TYPE;
 }
@@ -1320,7 +1322,7 @@ XMLError XMLAttribute::QueryFloatValue( float* value ) const
 XMLError XMLAttribute::QueryDoubleValue( double* value ) const
 {
     if ( XMLUtil::ToDouble( Value(), value )) {
-        return XML_NO_ERROR;
+        return XML_SUCCESS;
     }
     return XML_WRONG_ATTRIBUTE_TYPE;
 }
@@ -1769,7 +1771,7 @@ XMLDocument::XMLDocument( bool processEntities, Whitespace whitespace ) :
     XMLNode( 0 ),
     _writeBOM( false ),
     _processEntities( processEntities ),
-    _errorID( XML_NO_ERROR ),
+    _errorID(XML_SUCCESS),
     _whitespace( whitespace ),
     _errorStr1( 0 ),
     _errorStr2( 0 ),
@@ -1793,7 +1795,7 @@ void XMLDocument::Clear()
 #ifdef DEBUG
     const bool hadError = Error();
 #endif
-    _errorID = XML_NO_ERROR;
+    _errorID = XML_SUCCESS;
     _errorStr1 = 0;
     _errorStr2 = 0;
 
@@ -1914,6 +1916,26 @@ XMLError XMLDocument::LoadFile( const char* filename )
     return _errorID;
 }
 
+// This is likely overengineered template art to have a check that unsigned long value incremented
+// by one still fits into size_t. If size_t type is larger than unsigned long type
+// (x86_64-w64-mingw32 target) then the check is redundant and gcc and clang emit
+// -Wtype-limits warning. This piece makes the compiler select code with a check when a check
+// is useful and code with no check when a check is redundant depending on how size_t and unsigned long
+// types sizes relate to each other.
+template
+<bool = (sizeof(unsigned long) >= sizeof(size_t))>
+struct LongFitsIntoSizeTMinusOne {
+    static bool Fits( unsigned long value )
+    {
+        return value < (size_t)-1;
+    }
+};
+
+template <>
+bool LongFitsIntoSizeTMinusOne<false>::Fits( unsigned long /*value*/ )
+{
+    return true;
+}
 
 XMLError XMLDocument::LoadFile( FILE* fp )
 {
@@ -1932,8 +1954,9 @@ XMLError XMLDocument::LoadFile( FILE* fp )
         SetError( XML_ERROR_FILE_READ_ERROR, 0, 0 );
         return _errorID;
     }
+    TIXMLASSERT( filelength >= 0 );
 
-    if ( (unsigned long)filelength >= (size_t)-1 ) {
+    if ( !LongFitsIntoSizeTMinusOne<>::Fits( filelength ) ) {
         // Cannot handle files which won't fit in buffer together with null terminator
         SetError( XML_ERROR_FILE_READ_ERROR, 0, 0 );
         return _errorID;
@@ -1977,7 +2000,7 @@ XMLError XMLDocument::SaveFile( FILE* fp, bool compact )
 {
     // Clear any error from the last save, otherwise it will get reported
     // for *this* call.
-    SetError( XML_NO_ERROR, 0, 0 );
+	SetError(XML_SUCCESS, 0, 0);
     XMLPrinter stream( fp, compact );
     Print( &stream );
     return _errorID;

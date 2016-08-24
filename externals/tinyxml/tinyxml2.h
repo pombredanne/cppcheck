@@ -30,6 +30,9 @@ distribution.
 #   include <stdio.h>
 #   include <stdlib.h>
 #   include <string.h>
+#	if defined(__PS3__)
+#		include <stddef.h>
+#	endif
 #else
 #   include <cctype>
 #   include <climits>
@@ -76,7 +79,7 @@ distribution.
 #if defined(DEBUG)
 #   if defined(_MSC_VER)
 #       // "(void)0," is for suppressing C4127 warning in "assert(false)", "assert(true)" and the like
-#       define TIXMLASSERT( x )           if ( !((void)0,(x))) { __debugbreak(); } //if ( !(x)) WinDebugBreak()
+#       define TIXMLASSERT( x )           if ( !((void)0,(x))) { __debugbreak(); }
 #   elif defined (ANDROID_NDK)
 #       include <android/log.h>
 #       define TIXMLASSERT( x )           if ( !(x)) { __android_log_assert( "assert", "grinliz", "ASSERT in '%s' at %d.", __FILE__, __LINE__ ); }
@@ -84,8 +87,8 @@ distribution.
 #       include <assert.h>
 #       define TIXMLASSERT                assert
 #   endif
-#   else
-#       define TIXMLASSERT( x )           {}
+#else
+#   define TIXMLASSERT( x )               {}
 #endif
 
 
@@ -166,7 +169,6 @@ private:
         NEEDS_DELETE = 0x200
     };
 
-    // After parsing, if *_end != 0, it can be set to zero.
     int     _flags;
     char*   _start;
     char*   _end;
@@ -486,7 +488,6 @@ public:
 // WARNING: must match XMLDocument::_errorNames[]
 enum XMLError {
     XML_SUCCESS = 0,
-    XML_NO_ERROR = 0,
     XML_NO_ATTRIBUTE,
     XML_WRONG_ATTRIBUTE_TYPE,
     XML_ERROR_FILE_NOT_FOUND,
@@ -557,16 +558,7 @@ public:
         if ( p == q ) {
             return true;
         }
-        int n = 0;
-        while( *p && *q && *p == *q && n<nChar ) {
-            ++p;
-            ++q;
-            ++n;
-        }
-        if ( (n == nChar) || ( *p == 0 && *q == 0 ) ) {
-            return true;
-        }
-        return false;
+        return strncmp( p, q, nChar ) == 0;
     }
     
     inline static bool IsUTF8Continuation( char p ) {
@@ -903,7 +895,6 @@ private:
 */
 class TINYXML2_LIB XMLText : public XMLNode
 {
-    friend class XMLBase;
     friend class XMLDocument;
 public:
     virtual bool Accept( XMLVisitor* visitor ) const;
@@ -1152,7 +1143,6 @@ private:
 */
 class TINYXML2_LIB XMLElement : public XMLNode
 {
-    friend class XMLBase;
     friend class XMLDocument;
 public:
     /// Get the name of an element (which is the Value() of the node.)
@@ -1431,15 +1421,15 @@ public:
     	@endverbatim
     */
 	void SetText( const char* inText );
-    /// Convenience method for setting text inside and element. See SetText() for important limitations.
+    /// Convenience method for setting text inside an element. See SetText() for important limitations.
     void SetText( int value );
-    /// Convenience method for setting text inside and element. See SetText() for important limitations.
+    /// Convenience method for setting text inside an element. See SetText() for important limitations.
     void SetText( unsigned value );  
-    /// Convenience method for setting text inside and element. See SetText() for important limitations.
+    /// Convenience method for setting text inside an element. See SetText() for important limitations.
     void SetText( bool value );  
-    /// Convenience method for setting text inside and element. See SetText() for important limitations.
+    /// Convenience method for setting text inside an element. See SetText() for important limitations.
     void SetText( double value );  
-    /// Convenience method for setting text inside and element. See SetText() for important limitations.
+    /// Convenience method for setting text inside an element. See SetText() for important limitations.
     void SetText( float value );  
 
     /**
@@ -1685,7 +1675,7 @@ public:
 
     /// Return true if there was an error parsing the document.
     bool Error() const {
-        return _errorID != XML_NO_ERROR;
+        return _errorID != XML_SUCCESS;
     }
     /// Return the errorID.
     XMLError  ErrorID() const {

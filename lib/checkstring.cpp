@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,6 +27,13 @@
 namespace {
     CheckString instance;
 }
+
+// CWE ids used:
+static const struct CWE CWE570(570U);   // Expression is Always False
+static const struct CWE CWE571(571U);   // Expression is Always True
+static const struct CWE CWE595(595U);   // Comparison of Object References Instead of Object Contents
+static const struct CWE CWE628(628U);   // Function Call with Incorrectly Specified Arguments
+static const struct CWE CWE665(665U);   // Improper Initialization
 
 
 //---------------------------------------------------------------------------
@@ -81,11 +88,12 @@ void CheckString::checkAlwaysTrueOrFalseStringCompare()
         return;
 
     for (const Token* tok = _tokenizer->tokens(); tok; tok = tok->next()) {
-        if (tok->isName() && Token::Match(tok, "memcmp|strncmp|strcmp|stricmp|strverscmp|bcmp|strcmpi|strcasecmp|strncasecmp|strncasecmp_l|strcasecmp_l|wcsncasecmp|wcscasecmp|wmemcmp|wcscmp|wcscasecmp_l|wcsncasecmp_l|wcsncmp|_mbscmp|_memicmp|_memicmp_l|_stricmp|_wcsicmp|_mbsicmp|_stricmp_l|_wcsicmp_l|_mbsicmp_l (")) {
+        if (tok->isName() && tok->strAt(1) == "(" && Token::Match(tok, "memcmp|strncmp|strcmp|stricmp|strverscmp|bcmp|strcmpi|strcasecmp|strncasecmp|strncasecmp_l|strcasecmp_l|wcsncasecmp|wcscasecmp|wmemcmp|wcscmp|wcscasecmp_l|wcsncasecmp_l|wcsncmp|_mbscmp|_memicmp|_memicmp_l|_stricmp|_wcsicmp|_mbsicmp|_stricmp_l|_wcsicmp_l|_mbsicmp_l")) {
             if (Token::Match(tok->tokAt(2), "%str% , %str% ,|)")) {
                 const std::string &str1 = tok->strAt(2);
                 const std::string &str2 = tok->strAt(4);
-                alwaysTrueFalseStringCompareError(tok, str1, str2);
+                if (!tok->isExpandedMacro() && !tok->tokAt(2)->isExpandedMacro() && !tok->tokAt(4)->isExpandedMacro())
+                    alwaysTrueFalseStringCompareError(tok, str1, str2);
                 tok = tok->tokAt(5);
             } else if (Token::Match(tok->tokAt(2), "%name% , %name% ,|)")) {
                 const std::string &str1 = tok->strAt(2);
@@ -125,7 +133,7 @@ void CheckString::alwaysTrueFalseStringCompareError(const Token *tok, const std:
     reportError(tok, Severity::warning, "staticStringCompare",
                 "Unnecessary comparison of static strings.\n"
                 "The compared strings, '" + string1 + "' and '" + string2 + "', are always " + (str1==str2?"identical":"unequal") + ". "
-                "Therefore the comparison is unnecessary and looks suspicious.");
+                "Therefore the comparison is unnecessary and looks suspicious.", (str1==str2)?CWE571:CWE570, false);
 }
 
 void CheckString::alwaysTrueStringVariableCompareError(const Token *tok, const std::string& str1, const std::string& str2)
@@ -133,7 +141,7 @@ void CheckString::alwaysTrueStringVariableCompareError(const Token *tok, const s
     reportError(tok, Severity::warning, "stringCompare",
                 "Comparison of identical string variables.\n"
                 "The compared strings, '" + str1 + "' and '" + str2 + "', are identical. "
-                "This could be a logic bug.");
+                "This could be a logic bug.", CWE571, false);
 }
 
 
@@ -205,13 +213,13 @@ void CheckString::checkSuspiciousStringCompare()
 void CheckString::suspiciousStringCompareError(const Token* tok, const std::string& var)
 {
     reportError(tok, Severity::warning, "literalWithCharPtrCompare",
-                "String literal compared with variable '" + var + "'. Did you intend to use strcmp() instead?");
+                "String literal compared with variable '" + var + "'. Did you intend to use strcmp() instead?", CWE595, false);
 }
 
 void CheckString::suspiciousStringCompareError_char(const Token* tok, const std::string& var)
 {
     reportError(tok, Severity::warning, "charLiteralWithCharPtrCompare",
-                "Char literal compared with pointer '" + var + "'. Did you intend to dereference it?");
+                "Char literal compared with pointer '" + var + "'. Did you intend to dereference it?", CWE595, false);
 }
 
 
@@ -243,7 +251,7 @@ void CheckString::strPlusChar()
 
 void CheckString::strPlusCharError(const Token *tok)
 {
-    reportError(tok, Severity::error, "strPlusChar", "Unusual pointer arithmetic. A value of type 'char' is added to a string literal.");
+    reportError(tok, Severity::error, "strPlusChar", "Unusual pointer arithmetic. A value of type 'char' is added to a string literal.", CWE665, false);
 }
 
 //---------------------------------------------------------------------------
@@ -301,12 +309,12 @@ void CheckString::checkIncorrectStringCompare()
 
 void CheckString::incorrectStringCompareError(const Token *tok, const std::string& func, const std::string &string)
 {
-    reportError(tok, Severity::warning, "incorrectStringCompare", "String literal " + string + " doesn't match length argument for " + func + "().");
+    reportError(tok, Severity::warning, "incorrectStringCompare", "String literal " + string + " doesn't match length argument for " + func + "().", CWE570, false);
 }
 
 void CheckString::incorrectStringBooleanError(const Token *tok, const std::string& string)
 {
-    reportError(tok, Severity::warning, "incorrectStringBooleanError", "Conversion of string literal " + string + " to bool always evaluates to true.");
+    reportError(tok, Severity::warning, "incorrectStringBooleanError", "Conversion of string literal " + string + " to bool always evaluates to true.", CWE571, false);
 }
 
 //---------------------------------------------------------------------------
@@ -359,5 +367,5 @@ void CheckString::sprintfOverlappingDataError(const Token *tok, const std::strin
                 "s[n]printf(). The origin and destination buffers overlap. Quote from glibc (C-library) "
                 "documentation (http://www.gnu.org/software/libc/manual/html_mono/libc.html#Formatted-Output-Functions): "
                 "\"If copying takes place between objects that overlap as a result of a call "
-                "to sprintf() or snprintf(), the results are undefined.\"");
+                "to sprintf() or snprintf(), the results are undefined.\"", CWE628, false);
 }

@@ -73,37 +73,35 @@ def handleRemoveReadonly(func, path, exc):
 
 
 def removeAllExceptResults():
-    count = 5
-    while count > 0:
-        count = count - 1
+    filenames = []
+    for g in glob.glob('[A-Za-z0-9]*'):
+        filenames.append(g)
+    for g in glob.glob('.[a-z]*'):
+        filenames.append(g)
 
-        filenames = []
-        for g in glob.glob('[A-Za-z0-9]*'):
-            filenames.append(g)
-        for g in glob.glob('.[a-z]*'):
-            filenames.append(g)
+    for filename in filenames:
+        count = 5
+        while count > 0:
+            count = count - 1
 
-        try:
-            for filename in filenames:
+            try:
                 if os.path.isdir(filename):
                     shutil.rmtree(filename, onerror=handleRemoveReadonly)
                 elif filename != 'results.txt':
                     os.remove(filename)
-        except WindowsError, err:
-            time.sleep(30)
-            if count == 0:
-                print('Failed to cleanup files/folders')
-                print(err)
-                sys.exit(1)
-            continue
-        except OSError, err:
-            time.sleep(30)
-            if count == 0:
-                print('Failed to cleanup files/folders')
-                print(err)
-                sys.exit(1)
-            continue
-        count = 0
+                break
+            except WindowsError as err:
+                time.sleep(30)
+                if count == 0:
+                    f = open('results.txt','at')
+                    f.write('Failed to cleanup ' + filename + ': ' + str(err))
+                    f.close()
+            except OSError as err:
+                time.sleep(30)
+                if count == 0:
+                    f = open('results.txt','at')
+                    f.write('Failed to cleanup ' + filename + ': ' + str(err))
+                    f.close()
 
 
 def removeLargeFiles(path):
@@ -113,12 +111,23 @@ def removeLargeFiles(path):
         if os.path.islink(g):
             continue
         if os.path.isdir(g):
-            removeLargeFiles(g + '/')
+            # Remove test code
+            if g.endswith('/testsuite') or g.endswith('/clang/INPUTS'):
+                shutil.rmtree(g, onerror=handleRemoveReadonly)
+            else:
+                removeLargeFiles(g + '/')
         elif os.path.isfile(g) and g[-4:] != '.txt':
             statinfo = os.stat(g)
-            if path.find('/clang/INPUTS/') > 0 or statinfo.st_size > 100000:
-                os.remove(g)
+            if statinfo.st_size > 1000000:
+                try:
+                    os.remove(g)
+                except OSError as err:
+                    f = open('results.txt','at')
+                    f.write('Failed to remove ' + g + ': ' + str(err))
+                    f.close()
 
+def strfCurrTime(fmt):
+    return datetime.time.strftime(datetime.datetime.now().time(), fmt)
 
 def scanarchive(filepath, jobs):
     # remove all files/folders except results.txt
@@ -143,23 +152,9 @@ def scanarchive(filepath, jobs):
     elif filename[-4:] == '.bz2':
         subprocess.call(['tar', 'xjvf', filename])
 
-#
-# List of skipped packages - which trigger known yet unresolved problems with cppcheck.
-# The issues on trac (http://trac.cppcheck.net) are given for reference
-# boost #3654 (?)
-# flite #5975
-# insight#5184
-#
-
-    if filename[:5] == 'flite' or filename[:5] == 'boost' or filename[:7] == 'insight':
-        results = open('results.txt', 'at')
-        results.write('fixme: skipped package to avoid hang\n')
-        results.close()
-        return
-
     removeLargeFiles('')
 
-    print('cppcheck ' + filename)
+    print(strfCurrTime('[%H:%M] cppcheck ') + filename)
 
     p = subprocess.Popen(
         ['nice',
@@ -176,9 +171,9 @@ def scanarchive(filepath, jobs):
 
     results = open('results.txt', 'at')
     if p.returncode == 0:
-        results.write(comm[1])
+        results.write(comm[1] + strfCurrTime('[%H:%M]') + '\n')
     elif comm[0].find('cppcheck: error: could not find or open any of the paths given.') < 0:
-        results.write(comm[1])
+        results.write(comm[1] + strfCurrTime('[%H:%M]') + '\n')
         results.write('Exit code is not zero! Crash?\n')
     results.write('\n')
     results.close()
@@ -186,16 +181,26 @@ def scanarchive(filepath, jobs):
 FOLDER = None
 JOBS = '-j1'
 REV = None
+SKIP = []
+WORKDIR = os.path.expanduser('~/daca2');
 for arg in sys.argv[1:]:
     if arg[:6] == '--rev=':
         REV = arg[6:]
     elif arg[:2] == '-j':
         JOBS = arg
+    elif arg[:7] == '--skip=':
+        SKIP.append(arg[7:])
+    elif arg[:10] == '--workdir=':
+        WORKDIR = arg[10:]
     else:
         FOLDER = arg
 
 if not FOLDER:
     print('no folder given')
+    sys.exit(1)
+
+if not os.path.isdir(WORKDIR):
+    print('workdir \'' + WORKDIR + '\' is not a folder')
     sys.exit(1)
 
 archives = getpackages(FOLDER)
@@ -206,26 +211,34 @@ if len(archives) == 0:
 print('Sleep for 10 seconds..')
 time.sleep(10)
 
-workdir = os.path.expanduser('~/daca2/')
+if not WORKDIR.endswith('/'):
+    WORKDIR = WORKDIR + '/'
 
 print('~/daca2/' + FOLDER)
-if not os.path.isdir(workdir + FOLDER):
-    os.makedirs(workdir + FOLDER)
-os.chdir(workdir + FOLDER)
+if not os.path.isdir(WORKDIR + FOLDER):
+    os.makedirs(WORKDIR + FOLDER)
+os.chdir(WORKDIR + FOLDER)
 
 try:
     results = open('results.txt', 'wt')
     results.write('STARTDATE ' + str(datetime.date.today()) + '\n')
+    results.write('STARTTIME ' + strfCurrTime('%H:%M:%S') + '\n')
     if REV:
         results.write('GIT-REVISION ' + REV + '\n')
     results.write('\n')
     results.close()
 
     for archive in archives:
+        if len(SKIP) > 0:
+            a = archive[:archive.rfind('/')]
+            a = a[a.rfind('/')+1:]
+            if a in SKIP:
+                continue
         scanarchive(archive, JOBS)
 
     results = open('results.txt', 'at')
     results.write('DATE ' + str(datetime.date.today()) + '\n')
+    results.write('TIME ' + strfCurrTime('%H:%M:%S') + '\n')
     results.close()
 
 except EOFError:

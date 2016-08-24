@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -636,6 +636,16 @@ private:
               "    return str;\n"
               "}");
         ASSERT_EQUALS("[test.cpp:7]: (error) Pointer to local array variable returned.\n", errout.str());
+
+        check("char * format_reg(char *outbuffer_start) {\n"
+              "    return outbuffer_start;\n"
+              "}\n"
+              "void print_with_operands() {\n"
+              "    char temp[42];\n"
+              "    char *tp = temp;\n"
+              "    tp = format_reg(tp);\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
     }
 
     void returnLocalVariable2() {
@@ -1011,6 +1021,16 @@ private:
               "    [](const Item& lhs, const Item& rhs) {\n"
               "        return false;\n"
               "    });\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
+
+        // #5844
+        check("map<string,string> const &getVariableTable() {\n"
+              "static map<string,string> const s_var = []{\n"
+              "    map<string,string> var;\n"
+              "    return var;\n"
+              "  }();\n"
+              "return s_var;\n"
               "}");
         ASSERT_EQUALS("", errout.str());
     }

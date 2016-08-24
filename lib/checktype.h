@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -75,17 +75,17 @@ private:
     // Error messages..
     void tooBigBitwiseShiftError(const Token *tok, int lhsbits, const ValueFlow::Value &rhsbits);
     void integerOverflowError(const Token *tok, const ValueFlow::Value &value);
-    void signConversionError(const Token *tok);
+    void signConversionError(const Token *tok, const bool constvalue);
     void longCastAssignError(const Token *tok);
     void longCastReturnError(const Token *tok);
 
     void getErrorMessages(ErrorLogger *errorLogger, const Settings *settings) const {
-        CheckType c(0, settings, errorLogger);
-        c.tooBigBitwiseShiftError(0, 32, ValueFlow::Value(64));
-        c.integerOverflowError(0, ValueFlow::Value(1LL<<32));
-        c.signConversionError(0);
-        c.longCastAssignError(0);
-        c.longCastReturnError(0);
+        CheckType c(nullptr, settings, errorLogger);
+        c.tooBigBitwiseShiftError(nullptr, 32, ValueFlow::Value(64));
+        c.integerOverflowError(nullptr, ValueFlow::Value(1LL<<32));
+        c.signConversionError(nullptr, false);
+        c.longCastAssignError(nullptr);
+        c.longCastReturnError(nullptr);
     }
 
     static std::string myName() {

@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -85,6 +85,7 @@ private:
         TEST_CASE(isNameGuarantees3)
         TEST_CASE(isNameGuarantees4)
         TEST_CASE(isNameGuarantees5)
+        TEST_CASE(isNameGuarantees6)
 
         TEST_CASE(canFindMatchingBracketsNeedsOpen);
         TEST_CASE(canFindMatchingBracketsInnerPair);
@@ -138,8 +139,6 @@ private:
         // Test for empty string found
         Token notfound(0);
         notfound.str("notfound");
-        ASSERT_EQUALS(0, Token::multiCompare(&notfound, "|one|two", 0));
-        ASSERT_EQUALS(0, Token::multiCompare(&notfound, "one||two", 0));
         ASSERT_EQUALS(0, Token::multiCompare(&notfound, "one|two|", 0));
 
         // Test for not found
@@ -890,6 +889,11 @@ private:
         ASSERT_EQUALS(false, tok.isNumber());
     }
 
+    void isNameGuarantees6() const {
+        Token tok(nullptr);
+        tok.str("$f");
+        ASSERT_EQUALS(true, tok.isName());
+    }
 
     void canFindMatchingBracketsNeedsOpen() const {
         givenACodeSampleToTokenize var("std::deque<std::set<int> > intsets;");
@@ -929,7 +933,7 @@ private:
         ASSERT(t != nullptr && t->str() == ">");
 
         t = var.tokens()->tokAt(4)->findClosingBracket();
-        ASSERT(t != nullptr && t->str() == ")");
+        ASSERT(t == nullptr);
     }
 };
 

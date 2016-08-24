@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,6 +35,7 @@ class ErrorLine;
 class QModelIndex;
 class QWidget;
 class QItemSelectionModel;
+class ThreadHandler;
 
 /// @addtogroup GUI
 /// @{
@@ -49,7 +50,7 @@ class ResultsTree : public QTreeView {
 public:
     explicit ResultsTree(QWidget * parent = 0);
     virtual ~ResultsTree();
-    void Initialize(QSettings *settings, ApplicationList *list);
+    void Initialize(QSettings *settings, ApplicationList *list, ThreadHandler *checkThreadHandler);
 
     /**
     * @brief Add a new item to the tree
@@ -68,6 +69,11 @@ public:
      * @brief Clear errors for a specific file from the tree
      */
     void Clear(const QString &filename);
+
+    /**
+     * @brief Clear errors of a file selected for recheck
+     */
+    void ClearRecheckFile(const QString &filename);
 
     /**
     * @brief Function to show/hide certain type of errors
@@ -115,6 +121,14 @@ public:
     * @param dir Directory we are checking
     */
     void SetCheckDirectory(const QString &dir);
+
+    /**
+    * @brief Get the directory we are checking
+    *
+    * @return Directory containing source files
+    */
+
+    QString GetCheckDirectory(void);
 
     /**
     * @brief Check if there are any visible results in view.
@@ -173,6 +187,13 @@ signals:
     void ResultsHidden(bool hidden);
 
     /**
+    * @brief Signal to perform selected files recheck
+    *
+    * @param selectedItems list of selected files
+    */
+    void CheckSelected(QStringList selectedItems);
+
+    /**
     * @brief Signal for selection change in result tree.
     *
     * @param current Model index to specify new selected item.
@@ -223,6 +244,12 @@ protected slots:
     *
     */
     void HideResult();
+
+    /**
+    * @brief Slot for rechecking selected files
+    *
+    */
+    void RecheckSelectedFiles();
 
     /**
     * @brief Slot for context menu item to hide all messages with the current message Id
@@ -472,6 +499,7 @@ protected:
 
 private:
     QItemSelectionModel *mSelectionModel;
+    ThreadHandler *mThread;
 };
 /// @}
 #endif // RESULTSTREE_H

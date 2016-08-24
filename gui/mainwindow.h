@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -83,6 +83,12 @@ public slots:
     *
     */
     void ReCheckAll();
+
+    /**
+    * @brief Slot to recheck selected files
+    * @param selectedFilesList list of selected files
+    */
+    void PerformSelectedFilesCheck(QStringList selectedFilesList);
 
     /**
     * @brief Slot to recheck modified files
@@ -320,6 +326,13 @@ private:
     void ReCheck(bool all);
 
     /**
+    * @brief Recheck selected files
+    * @param files list of selected files
+    * @param all true if all files of list, false if modified files of list
+    */
+    void ReCheckSelected(QStringList files, bool all);
+
+    /**
       * @brief Check the project.
       * @param project Pointer to the project to check.
       */
@@ -357,6 +370,13 @@ private:
     * @return QStringList of files or directories that were selected to check
     */
     QStringList SelectFilesToCheck(QFileDialog::FileMode mode);
+
+    /**
+    * @brief Check project
+    *
+    * @param p imported project
+    */
+    void DoCheckProject(ImportProject p);
 
     /**
     * @brief Check all files specified in parameter files
@@ -556,6 +576,11 @@ private:
     * so that the application can be closed.
     */
     bool mExiting;
+
+    /**
+    * @brief Set to true in case of loading log file.
+    */
+    bool mIsLogfileLoaded;
 
     /**
      * @brief Project MRU menu actions.

@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,6 +35,18 @@ namespace ValueFlow {
     public:
         explicit Value(long long val = 0) : intvalue(val), tokvalue(nullptr), varvalue(val), condition(0), varId(0U), conditional(false), inconclusive(false), defaultArg(false), valueKind(ValueKind::Possible) {}
         Value(const Token *c, long long val) : intvalue(val), tokvalue(nullptr), varvalue(val), condition(c), varId(0U), conditional(false), inconclusive(false), defaultArg(false), valueKind(ValueKind::Possible) {}
+
+        bool operator==(const Value &rhs) const {
+            return intvalue == rhs.intvalue &&
+                   tokvalue == rhs.tokvalue &&
+                   varvalue == rhs.varvalue &&
+                   condition == rhs.condition &&
+                   varId == rhs.varId &&
+                   conditional == rhs.conditional &&
+                   inconclusive == rhs.inconclusive &&
+                   defaultArg == rhs.defaultArg &&
+                   valueKind == rhs.valueKind;
+        }
 
         /** int value */
         long long intvalue;
@@ -94,6 +106,10 @@ namespace ValueFlow {
         }
     };
 
+    /// Constant folding of expression. This can be used before the full ValueFlow has been executed (ValueFlow::setValues).
+    const ValueFlow::Value * valueFlowConstantFoldAST(const Token *expr, const Settings *settings);
+
+    /// Perform valueflow analysis.
     void setValues(TokenList *tokenlist, SymbolDatabase* symboldatabase, ErrorLogger *errorLogger, const Settings *settings);
 
     std::string eitherTheConditionIsRedundant(const Token *condition);

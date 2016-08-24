@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -76,6 +76,8 @@ private:
         ASSERT_EQUALS("src/test.cpp", Path::simplifyPath(".//src/test.cpp"));
         ASSERT_EQUALS("src/test.cpp", Path::simplifyPath(".///src/test.cpp"));
         ASSERT_EQUALS("test.cpp", Path::simplifyPath("./././././test.cpp"));
+        TODO_ASSERT_EQUALS("src", "src/abc/..", Path::simplifyPath("src/abc/.."));
+        // TODO: don't crash ASSERT_EQUALS("src", Path::simplifyPath("src/abc/../"));
 
         // Handling of UNC paths on Windows
         ASSERT_EQUALS("//src/test.cpp", Path::simplifyPath("//src/test.cpp"));

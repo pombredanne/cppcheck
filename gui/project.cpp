@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -93,6 +93,8 @@ bool Project::Edit()
     dlg.SetDefines(defines);
     QStringList paths = mPFile->GetCheckPaths();
     dlg.SetPaths(paths);
+    QString importProject = mPFile->GetImportProject();
+    dlg.SetImportProject(importProject);
     QStringList ignorepaths = mPFile->GetExcludedPaths();
     dlg.SetExcludedPaths(ignorepaths);
     QStringList libraries = mPFile->GetLibraries();
@@ -104,6 +106,7 @@ bool Project::Edit()
     if (rv == QDialog::Accepted) {
         QString root = dlg.GetRootPath();
         mPFile->SetRootPath(root);
+        mPFile->SetImportProject(dlg.GetImportProject());
         QStringList includes = dlg.GetIncludePaths();
         mPFile->SetIncludes(includes);
         QStringList defines = dlg.GetDefines();

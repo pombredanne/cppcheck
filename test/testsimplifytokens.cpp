@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -46,6 +46,12 @@ private:
         // case shall make sure the simplifications are done in the
         // correct order
         TEST_CASE(simplifyTokenList1);
+
+        // foo(p = new char[10]);  =>  p = new char[10]; foo(p);
+        TEST_CASE(simplifyAssignmentInFunctionCall);
+
+        // ";a+=b;" => ";a=a+b;"
+        TEST_CASE(simplifyCompoundAssignment);
 
         TEST_CASE(cast);
         TEST_CASE(iftruefalse);
@@ -147,59 +153,12 @@ private:
         TEST_CASE(pointeralias3);
         TEST_CASE(pointeralias4);
 
-        TEST_CASE(reduceConstness);
-
         // simplify "while (0)"
         TEST_CASE(while0);
         // ticket #3140
         TEST_CASE(while0for);
         TEST_CASE(while1);
 
-        TEST_CASE(enum1);
-        TEST_CASE(enum2);
-        TEST_CASE(enum3);
-        TEST_CASE(enum4);
-        TEST_CASE(enum5);
-        TEST_CASE(enum6);
-        TEST_CASE(enum7);
-        TEST_CASE(enum8);
-        TEST_CASE(enum9); // ticket 1404
-        TEST_CASE(enum10); // ticket 1445
-        TEST_CASE(enum11);
-        TEST_CASE(enum12);
-        TEST_CASE(enum13);
-        TEST_CASE(enum14);
-        TEST_CASE(enum15);
-        TEST_CASE(enum16); // ticket #1988
-        TEST_CASE(enum17); // ticket #2381 (duplicate enums)
-        TEST_CASE(enum18); // #2466 (array with same name as enum constant)
-        TEST_CASE(enum19); // ticket #2536
-        TEST_CASE(enum20); // ticket #2600
-        TEST_CASE(enum21); // ticket #2720
-        TEST_CASE(enum22); // ticket #2745
-        TEST_CASE(enum23); // ticket #2804
-        TEST_CASE(enum24); // ticket #2828
-        TEST_CASE(enum25); // ticket #2966
-        TEST_CASE(enum26); // ticket #2975 (segmentation fault)
-        TEST_CASE(enum27); // ticket #3005 (segmentation fault)
-        TEST_CASE(enum28);
-        TEST_CASE(enum29); // ticket #3747 (bitwise or value)
-        TEST_CASE(enum30); // ticket #3852 (false positive)
-        TEST_CASE(enum31); // ticket #3934 (calculation in first item)
-        TEST_CASE(enum32); // ticket #3998 (access violation)
-        TEST_CASE(enum33); // ticket #4015 (segmentation fault)
-        TEST_CASE(enum34); // ticket #4141 (division by zero)
-        TEST_CASE(enum35); // ticket #3953 (avoid simplification of type)
-        TEST_CASE(enum36); // ticket #4378
-        TEST_CASE(enum37); // ticket #4280 (shadow variable)
-        TEST_CASE(enum38); // ticket #4463 (when throwing enum id, don't warn about shadow variable)
-        TEST_CASE(enum39); // ticket #5145 (fp variable hides enum)
-        TEST_CASE(enum40);
-        TEST_CASE(enum41); // ticket #5212 (valgrind errors during enum simplification)
-        TEST_CASE(enum42); // ticket #5182 (template function call in enum value)
-        TEST_CASE(enum43); // lhs in assignment
-        TEST_CASE(enum44);
-        TEST_CASE(enumscope1); // ticket #3949
         TEST_CASE(duplicateDefinition); // ticket #3565
 
         // remove "std::" on some standard functions
@@ -225,9 +184,9 @@ private:
         TEST_CASE(simplifyStructDecl2); // ticket #2579
         TEST_CASE(simplifyStructDecl3);
         TEST_CASE(simplifyStructDecl4);
-        TEST_CASE(simplifyStructDecl5); // ticket #3533 (segmentation fault)
         TEST_CASE(simplifyStructDecl6); // ticket #3732
         TEST_CASE(simplifyStructDecl7); // ticket #476 (static anonymous struct array)
+        TEST_CASE(simplifyStructDecl8); // ticket #7698
 
         // register int var; => int var;
         // inline int foo() {} => int foo() {}
@@ -248,7 +207,6 @@ private:
         TEST_CASE(removeVoidFromFunction);
 
         TEST_CASE(simplifyVarDecl1); // ticket # 2682 segmentation fault
-        TEST_CASE(simplifyVarDecl2); // ticket # 2834 segmentation fault
         TEST_CASE(return_strncat); // ticket # 2860 Returning value of strncat() reported as memory leak
 
         // #3069 : for loop with 1 iteration
@@ -265,7 +223,7 @@ private:
         TEST_CASE(simplifyOverride); // ticket #5069
     }
 
-    std::string tok(const char code[], bool simplify = true, Settings::PlatformType type = Settings::Unspecified) {
+    std::string tok(const char code[], bool simplify = true, Settings::PlatformType type = Settings::Native) {
         errout.str("");
 
         settings0.platform(type);
@@ -280,7 +238,7 @@ private:
         return tokenizer.tokens()->stringifyList(0, !simplify);
     }
 
-    std::string tokWithWindows(const char code[], bool simplify = true, Settings::PlatformType type = Settings::Unspecified) {
+    std::string tokWithWindows(const char code[], bool simplify = true, Settings::PlatformType type = Settings::Native) {
         errout.str("");
 
         settings_windows.platform(type);
@@ -338,6 +296,76 @@ private:
         // #1717 : The simplifyErrNoInWhile needs to be used before simplifyIfAndWhileAssign..
         ASSERT_EQUALS("; x = f ( ) ; while ( x == -1 ) { x = f ( ) ; }",
                       tok(";while((x=f())==-1 && errno==EINTR){}",true));
+    }
+
+    void simplifyAssignmentInFunctionCall() {
+        ASSERT_EQUALS("; x = g ( ) ; f ( x ) ;", tok(";f(x=g());"));
+        ASSERT_EQUALS("; hs = ( xyz_t ) { h . centerX , h . centerY , 1 + index } ; putInput ( hs , 1 ) ;", tok(";putInput(hs = (xyz_t) { h->centerX, h->centerY, 1 + index }, 1);"));
+    }
+
+    void simplifyCompoundAssignment() {
+        ASSERT_EQUALS("; x = x + y ;", tok("; x += y;"));
+        ASSERT_EQUALS("; x = x - y ;", tok("; x -= y;"));
+        ASSERT_EQUALS("; x = x * y ;", tok("; x *= y;"));
+        ASSERT_EQUALS("; x = x / y ;", tok("; x /= y;"));
+        ASSERT_EQUALS("; x = x % y ;", tok("; x %= y;"));
+        ASSERT_EQUALS("; x = x & y ;", tok("; x &= y;"));
+        ASSERT_EQUALS("; x = x | y ;", tok("; x |= y;"));
+        ASSERT_EQUALS("; x = x ^ y ;", tok("; x ^= y;"));
+        ASSERT_EQUALS("; x = x << y ;", tok("; x <<= y;"));
+        ASSERT_EQUALS("; x = x >> y ;", tok("; x >>= y;"));
+
+        ASSERT_EQUALS("{ x = x + y ; }", tok("{ x += y;}"));
+        ASSERT_EQUALS("{ x = x - y ; }", tok("{ x -= y;}"));
+        ASSERT_EQUALS("{ x = x * y ; }", tok("{ x *= y;}"));
+        ASSERT_EQUALS("{ x = x / y ; }", tok("{ x /= y;}"));
+        ASSERT_EQUALS("{ x = x % y ; }", tok("{ x %= y;}"));
+        ASSERT_EQUALS("{ x = x & y ; }", tok("{ x &= y;}"));
+        ASSERT_EQUALS("{ x = x | y ; }", tok("{ x |= y;}"));
+        ASSERT_EQUALS("{ x = x ^ y ; }", tok("{ x ^= y;}"));
+        ASSERT_EQUALS("{ x = x << y ; }", tok("{ x <<= y;}"));
+        ASSERT_EQUALS("{ x = x >> y ; }", tok("{ x >>= y;}"));
+
+        ASSERT_EQUALS("; * p = * p + y ;", tok("; *p += y;"));
+        ASSERT_EQUALS("; ( * p ) = ( * p ) + y ;", tok("; (*p) += y;"));
+        ASSERT_EQUALS("; * ( p [ 0 ] ) = * ( p [ 0 ] ) + y ;", tok("; *(p[0]) += y;"));
+        ASSERT_EQUALS("; p [ { 1 , 2 } ] = p [ { 1 , 2 } ] + y ;", tok("; p[{1,2}] += y;"));
+
+        ASSERT_EQUALS("void foo ( ) { switch ( n ) { case 0 : ; x = x + y ; break ; } }", tok("void foo() { switch (n) { case 0: x += y; break; } }"));
+
+        ASSERT_EQUALS("; x . y = x . y + 1 ;", tok("; x.y += 1;"));
+
+        ASSERT_EQUALS("; x [ 0 ] = x [ 0 ] + 1 ;", tok("; x[0] += 1;"));
+        ASSERT_EQUALS("; x [ y - 1 ] = x [ y - 1 ] + 1 ;", tok("; x[y-1] += 1;"));
+        ASSERT_EQUALS("; x [ y ] = x [ y ++ ] + 1 ;", tok("; x[y++] += 1;"));
+        ASSERT_EQUALS("; x [ ++ y ] = x [ y ] + 1 ;", tok("; x[++y] += 1;"));
+
+        ASSERT_EQUALS(";", tok(";x += 0;"));
+        ASSERT_EQUALS(";", tok(";x += '\\0';"));
+        ASSERT_EQUALS(";", tok(";x -= 0;"));
+        ASSERT_EQUALS(";", tok(";x |= 0;"));
+        ASSERT_EQUALS(";", tok(";x *= 1;"));
+        ASSERT_EQUALS(";", tok(";x /= 1;"));
+
+        ASSERT_EQUALS("; a . x ( ) = a . x ( ) + 1 ;", tok("; a.x() += 1;"));
+        ASSERT_EQUALS("; x ( 1 ) = x ( 1 ) + 1 ;", tok("; x(1) += 1;"));
+
+        // #2368
+        ASSERT_EQUALS("{ j = j - i ; }", tok("if (false) {} else { j -= i; }"));
+
+        // #2714 - wrong simplification of "a += b?c:d;"
+        ASSERT_EQUALS("; a = a + ( b ? c : d ) ;", tok("; a+=b?c:d;"));
+        ASSERT_EQUALS("; a = a * ( b + 1 ) ;", tok("; a*=b+1;"));
+
+        ASSERT_EQUALS("; a = a + ( b && c ) ;", tok("; a+=b&&c;"));
+        ASSERT_EQUALS("; a = a * ( b || c ) ;", tok("; a*=b||c;"));
+        ASSERT_EQUALS("; a = a | ( b == c ) ;", tok("; a|=b==c;"));
+
+        // #3469
+        ASSERT_EQUALS("; a = a + ( b = 1 ) ;", tok("; a += b = 1;"));
+
+        // #7571
+        ASSERT_EQUALS("; foo = foo + [ & ] ( ) { } ;", tok("; foo += [&]() {int i;};"));
     }
 
 
@@ -902,7 +930,7 @@ private:
     void sizeof7() {
         const char code[] = ";INT32 i[10];\n"
                             "sizeof(i[0]);\n";
-        ASSERT_EQUALS("; INT32 i [ 10 ] ; sizeof ( i [ 0 ] ) ;", tok(code, true, Settings::Unspecified));
+        ASSERT_EQUALS("; INT32 i [ 10 ] ; sizeof ( i [ 0 ] ) ;", tok(code, true, Settings::Native));
         ASSERT_EQUALS("; int i [ 10 ] ; 4 ;", tokWithWindows(code, true, Settings::Win32A));
     }
 
@@ -1706,7 +1734,7 @@ private:
     }
 
     void cAlternativeTokens() {
-        ASSERT_EQUALS("void f ( ) { err = err | ( ( r & s ) && ! t ) ; }",
+        ASSERT_EQUALS("void f ( ) { err |= ( ( r & s ) && ! t ) ; }",
                       tok("void f() { err or_eq ((r bitand s) and not t); }", "test.c", false));
         ASSERT_EQUALS("void f ( ) const { r = f ( a [ 4 ] | 15 , ~ c , ! d ) ; }",
                       tok("void f() const { r = f(a[4] bitor 0x0F, compl c, not d) ; }", "test.c", false));
@@ -2754,10 +2782,6 @@ private:
         ASSERT_EQUALS(expected, tok(code));
     }
 
-    void reduceConstness() {
-        ASSERT_EQUALS("char * p ;", tok("char * const p;"));
-    }
-
     void while0() {
         ASSERT_EQUALS("; x = 1 ;", tok("; do { x = 1 ; } while (0);"));
         ASSERT_EQUALS("; return 0 ;", tok("; do { return 0; } while (0);"));
@@ -2788,571 +2812,12 @@ private:
         ASSERT_EQUALS(expected, tok(code));
     }
 
-    void enum1() {
-        const char code[] = "enum A { a, b, c }; A c1 = c;";
-        const char expected[] = "int c1 ; c1 = 2 ;";
-
-        ASSERT_EQUALS(expected, tok(code, false));
-    }
-
-    void enum2() {
-        const char code[] = "enum A { a, }; int array[a];";
-        const char expected[] = "int array [ 0 ] ;";
-
-        ASSERT_EQUALS(expected, tok(code, false));
-    }
-
-    void enum3() {
-        const char code[] = "enum { a, }; int array[a];";
-        const char expected[] = "int array [ 0 ] ;";
-
-        ASSERT_EQUALS(expected, tok(code, false));
-    }
-
-    void enum4() {
-        {
-            const char code[] = "class A {\n"
-                                "public:\n"
-                                "    enum EA { a1, a2, a3 };\n"
-                                "    EA get() const;\n"
-                                "    void put(EA a) { ea = a; ea = a1; }\n"
-                                "private:\n"
-                                "    EA ea;\n"
-                                "};\n"
-                                "A::EA A::get() const { return ea; }\n"
-                                "A::EA e = A::a1;";
-
-            const char expected[] = "class A { "
-                                    "public: "
-                                    ""
-                                    "int get ( ) const ; "
-                                    "void put ( int a ) { ea = a ; ea = 0 ; } "
-                                    "private: "
-                                    "int ea ; "
-                                    "} ; "
-                                    "int A :: get ( ) const { return ea ; } "
-                                    "int e ; e = 0 ;";
-
-            ASSERT_EQUALS(expected, tok(code, false));
-        }
-
-        {
-            const char code[] = "struct A {\n"
-                                "    enum EA { a1, a2, a3 };\n"
-                                "    EA get() const;\n"
-                                "    void put(EA a) { ea = a; ea = a1; }\n"
-                                "    EA ea;\n"
-                                "};\n"
-                                "A::EA A::get() const { return ea; }\n"
-                                "A::EA e = A::a1;";
-
-            const char expected[] = "struct A { "
-                                    ""
-                                    "int get ( ) const ; "
-                                    "void put ( int a ) { ea = a ; ea = 0 ; } "
-                                    "int ea ; "
-                                    "} ; "
-                                    "int A :: get ( ) const { return ea ; } "
-                                    "int e ; e = 0 ;";
-
-            ASSERT_EQUALS(expected, tok(code, false));
-        }
-    }
-
-    void enum5() {
-        const char code[] = "enum ABC {\n"
-                            "    a = sizeof(int),\n"
-                            "    b = 1 + a,\n"
-                            "    c = b + 100,\n"
-                            "    d,\n"
-                            "    e,\n"
-                            "    f = 90,\n"
-                            "    g\n"
-                            "};\n"
-                            "int sum =  a + b + c + d + e + f + g;";
-        const char expected[] = "int sum ; sum = "
-                                "sizeof ( int ) + "
-                                "( 1 + sizeof ( int ) ) + "
-                                "( 1 + sizeof ( int ) + 100 ) + " // 101 = 100 + 1
-                                "( 1 + sizeof ( int ) + 101 ) + " // 102 = 100 + 1 + 1
-                                "( 1 + sizeof ( int ) + 102 ) + 181 " // 283 = 100+2+90+91
-                                ";";
-
-        ASSERT_EQUALS(expected, tok(code, false));
-        ASSERT_EQUALS("int sum ; sum = 508 ;", tok(code, true));
-    }
-
-    void enum6() {
-        const char code[] = "enum { a = MAC(A, B, C) }; void f(a) { }";
-        const char expected[] = "void f ( a ) { }";
-        ASSERT_EQUALS(expected, tok(code, false));
-    }
-
-    void enum7() {
-        {
-            // ticket 1388
-            const char code[] = "enum FOO {A,B,C};\n"
-                                "int main()\n"
-                                "{\n"
-                                "  int A = B;\n"
-                                "  { float A = C; }\n"
-                                "}";
-            const char expected[] = "int main ( ) "
-                                    "{ "
-                                    "int A ; A = 1 ; "
-                                    "{ float A ; A = 2 ; } "
-                                    "}";
-            ASSERT_EQUALS(expected, tok(code, false));
-        }
-
-        {
-            const char code[] = "enum FOO {A,B,C};\n"
-                                "void f(int A, float B, char C) { }";
-            const char expected[] = "void f ( int A , float B , char C ) { }";
-            ASSERT_EQUALS(expected, tok(code, false));
-        }
-    }
-
-    // Check simplifyEnum
-    std::string checkSimplifyEnum(const char code[], bool cpp = true) {
-        errout.str("");
-        // Tokenize..
-        Tokenizer tokenizer(&settings1, this);
-        std::istringstream istr(code);
-        tokenizer.tokenize(istr, cpp?"test.cpp":"test.c");
-        return tokenizer.tokens()->stringifyList(0, true);
-    }
-
-    void enum8() {
-        // ticket 1388
-        checkSimplifyEnum("enum Direction {N=100,E,S,W,ALL};\n"
-                          "template<class T,int S> class EF_Vector{\n"
-                          "  T v_v[S];\n"
-                          "\n"
-                          "public:\n"
-                          "  EF_Vector();\n"
-                          "  explicit EF_Vector(const T &);\n"
-                          "  explicit EF_Vector(const T arr[S]);\n"
-                          "};\n"
-                          "\n"
-                          "template<class T,int S>\n"
-                          "EF_Vector<T,S>::EF_Vector()\n"
-                          "{\n"
-                          "}\n"
-                          "\n"
-                          "template<class T,int S>\n"
-                          "EF_Vector<T,S>::EF_Vector(const T &t)\n"
-                          "{\n"
-                          "  for(int i=0;i<S;i++)\n"
-                          "    v_v[i]=t;\n"
-                          "}\n"
-                          "\n"
-                          "template<class T,int S>\n"
-                          "EF_Vector<T,S>::EF_Vector(const T arr[S])\n"
-                          "{\n"
-                          "  for(int i=0;i<S;i++)\n"
-                          "    v_v[i]=arr[i];\n"
-                          "}\n"
-                          "\n"
-                          "void initialize()\n"
-                          "{\n"
-                          "   EF_Vector<float,6> d;\n"
-                          "}");
-        ASSERT_EQUALS("[test.cpp:2] -> [test.cpp:1]: (style) Template parameter 'S' hides enumerator with same name\n"
-                      "[test.cpp:11] -> [test.cpp:1]: (style) Template parameter 'S' hides enumerator with same name\n"
-                      "[test.cpp:16] -> [test.cpp:1]: (style) Template parameter 'S' hides enumerator with same name\n"
-                      "[test.cpp:23] -> [test.cpp:1]: (style) Template parameter 'S' hides enumerator with same name\n", errout.str());
-    }
-
-    void enum9() {
-        // ticket 1404
-        checkSimplifyEnum("class XX {\n"
-                          "public:\n"
-                          "static void Set(const int &p){m_p=p;}\n"
-                          "static int m_p;\n"
-                          "};\n"
-                          "int XX::m_p=0;\n"
-                          "int main() {\n"
-                          "  enum { XX };\n"
-                          "  XX::Set(std::numeric_limits<X>::digits());\n"
-                          "}");
-        ASSERT_EQUALS("", errout.str());
-    }
-
-    void enum10() {
-        // ticket 1445
-        const char code[] = "enum {\n"
-                            "SHELL_SIZE = sizeof(union { int i; char *cp; double d; }) - 1,\n"
-                            "} e = SHELL_SIZE;";
-        const char expected[] = "int e ; e = sizeof ( union { int i ; char * cp ; double d ; } ) - 1 ;";
-        ASSERT_EQUALS(expected, checkSimplifyEnum(code));
-
-        ASSERT_EQUALS("", errout.str());
-    }
-
-    void enum11() {
-        const char code[] = "int main()\n"
-                            "{\n"
-                            "  enum { u, v };\n"
-                            "  A u = 1, v = 2;\n"
-                            "}";
-        const char expected[] = "int main ( ) "
-                                "{ "
-                                ""
-                                "A u ; u = 1 ; A v ; v = 2 ; "
-                                "}";
-        ASSERT_EQUALS(expected, checkSimplifyEnum(code));
-
-        ASSERT_EQUALS("[test.cpp:4] -> [test.cpp:3]: (style) Variable 'u' hides enumerator with same name\n"
-                      "[test.cpp:4] -> [test.cpp:3]: (style) Variable 'v' hides enumerator with same name\n", errout.str());
-    }
-
-    void enum12() {
-        const char code[] = "enum fred { a, b };\n"
-                            "void foo()\n"
-                            "{\n"
-                            "    unsigned int fred = 0;\n"
-                            "}";
-        const char expected[] = "void foo ( ) { unsigned int fred ; fred = 0 ; }";
-        ASSERT_EQUALS(expected, checkSimplifyEnum(code));
-    }
-
-    void enum13() {
-        const char code[] = "enum ab { ENTRY(1, a = 0), ENTRY(2, b) };\n"
-                            "void foo()\n"
-                            "{\n"
-                            "    unsigned int fred = a;\n"
-                            "}";
-        const char expected[] = "void foo ( ) { unsigned int fred ; fred = a ; }";
-        ASSERT_EQUALS(expected, checkSimplifyEnum(code));
-    }
-
-    void enum14() {
-        const char code[] = "enum ab { a };\n"
-                            "ab";
-        const char expected[] = "ab";
-        ASSERT_EQUALS(expected, checkSimplifyEnum(code));
-    }
-
-    void enum15() { // C++0x features
-        {
-            const char code[] = "enum : char { a = 99 };\n"
-                                "char c1 = a;";
-            const char expected[] = "char c1 ; c1 = 99 ;";
-            ASSERT_EQUALS(expected, checkSimplifyEnum(code));
-        }
-
-        {
-            const char code[] = "enum class Enum1 { a };\n"
-                                "Enum1 e1 = Enum1::a;";
-            const char expected[] = "int e1 ; e1 = 0 ;";
-            ASSERT_EQUALS(expected, checkSimplifyEnum(code));
-        }
-
-        {
-            const char code[] = "enum class Enum1 { a };\n"
-                                "Enum1 e1 = a;";
-            const char expected[] = "int e1 ; e1 = a ;";
-            ASSERT_EQUALS(expected, checkSimplifyEnum(code));
-        }
-
-        {
-            const char code[] = "enum Enum1 : char { a };\n"
-                                "Enum1 e1 = a;";
-            const char expected[] = "char e1 ; e1 = 0 ;";
-            ASSERT_EQUALS(expected, checkSimplifyEnum(code));
-        }
-
-        {
-            const char code[] = "enum class Enum1 : unsigned char { a };\n"
-                                "Enum1 e1 = Enum1::a;";
-            const char expected[] = "unsigned char e1 ; e1 = 0 ;";
-            ASSERT_EQUALS(expected, checkSimplifyEnum(code));
-        }
-
-        {
-            const char code[] = "enum class Enum1 : unsigned int { a };\n"
-                                "Enum1 e1 = Enum1::a;";
-            const char expected[] = "unsigned int e1 ; e1 = 0 ;";
-            ASSERT_EQUALS(expected, checkSimplifyEnum(code));
-        }
-
-        {
-            const char code[] = "enum class Enum1 : unsigned long long int { a };\n"
-                                "Enum1 e1 = Enum1::a;";
-            const char expected[] = "unsigned long long e1 ; e1 = 0 ;";
-            ASSERT_EQUALS(expected, checkSimplifyEnum(code));
-        }
-
-        {
-            const char code[] = "enum class { A };\n"
-                                "int i = A;";
-            const char expected [] = "int i ; i = 0 ;";
-            ASSERT_EQUALS(expected, checkSimplifyEnum(code, false)); // Compile as C code: enum has name 'class'
-            checkSimplifyEnum(code, true); // Compile as C++ code: Don't crash
-        }
-
-        {
-            // Ticket #6810
-            ASSERT_THROW(checkSimplifyEnum("enum x : enum x {} :"), InternalError);
-            ASSERT_THROW(checkSimplifyEnum("enum x : enum x {} () :"), InternalError);
-            ASSERT_THROW(checkSimplifyEnum("enum x : :: {} () :"), InternalError);
-        }
-    }
-
-    void enum16() { // ticket #1988
-        const char code[] = "enum D : auto * { FF = 0 };";
-        ASSERT_THROW(checkSimplifyEnum(code), InternalError);
-    }
-
-    void enum17() { // ticket #2381
-        // if header is included twice its enums will be duplicated
-        const char code[] = "enum ab { a=0, b };"
-                            "enum ab { a=0, b };\n";
-        ASSERT_EQUALS(";", checkSimplifyEnum(code));
-        ASSERT_EQUALS("", errout.str());
-    }
-
-    void enum18() { // ticket #2466 - array with same name as enum constant
-        const char code[] = "enum ab { a=0, b };\n"
-                            "void f() { a[0]; }\n";
-        ASSERT_EQUALS("void f ( ) { a [ 0 ] ; }", checkSimplifyEnum(code));
-    }
-
-    void enum19() { // ticket #2536
-        const char code[] = "enum class E1;\n"
-                            "enum class E2 : int;\n";
-        ASSERT_EQUALS(";", checkSimplifyEnum(code));
-    }
-
-    void enum20() { // ticket #2600 segmentation fault
-        const char code[] = "enum { const }\n";
-        ASSERT_EQUALS("", checkSimplifyEnum(code));
-    }
-
-    void enum21() { // ticket #2720 syntax error
-        const char code[] = "enum E2 : signed const short { };\n";
-        ASSERT_EQUALS(";", checkSimplifyEnum(code));
-        ASSERT_EQUALS("", errout.str());
-    }
-
-    void enum22() { // ticket #2745
-        const char code[] = "enum en { x = 0 };\n"
-                            "void f() {\n"
-                            "    int x = 0;\n"
-                            "    g(x);\n"
-                            "}\n"
-                            "void f2(int &x) {\n"
-                            "    x+=1;\n"
-                            "}\n";
-        checkSimplifyEnum(code);
-        ASSERT_EQUALS("[test.cpp:3] -> [test.cpp:1]: (style) Variable 'x' hides enumerator with same name\n"
-                      "[test.cpp:6] -> [test.cpp:1]: (style) Function argument 'x' hides enumerator with same name\n",
-                      errout.str());
-
-        // avoid false positive: in other scope
-        const char code2[] = "class C1 { enum en { x = 0 }; };\n"
-                             "class C2 { bool x; };\n";
-        checkSimplifyEnum(code2);
-        ASSERT_EQUALS("", errout.str());
-
-        // avoid false positive: inner if-scope
-        const char code3[] = "enum en { x = 0 };\n"
-                             "void f() { if (aa) ; else if (bb==x) df; }\n";
-        checkSimplifyEnum(code3);
-        ASSERT_EQUALS("", errout.str());
-
-        // avoid false positive: Initializer list
-        const char code4[] = "struct S {\n"
-                             "    enum { E = 1 };\n"
-                             "    explicit S(float f)\n"
-                             "        : f_(f * E)\n"
-                             "    {}\n"
-                             "    float f_;\n"
-                             "};";
-        checkSimplifyEnum(code4);
-        ASSERT_EQUALS("", errout.str());
-    }
-
-    void enum23() { // ticket #2804
-        const char code[] = "enum Enumerator : std::uint8_t { ITEM1, ITEM2, ITEM3 };\n"
-                            "Enumerator e = ITEM3;\n";
-        const char expected[] = "std :: uint8_t e ; e = 2 ;";
-        ASSERT_EQUALS(expected, checkSimplifyEnum(code));
-        ASSERT_EQUALS("", errout.str());
-    }
-
-    void enum24() { // ticket #2828
-        const char code[] = "enum EnumName { STYLE = 0x0001 };\n"
-                            "void f(long style) {\n"
-                            "    if (style & STYLE) { }\n"
-                            "}\n";
-        const char expected[] = "void f ( long style ) { if ( style & 1 ) { } }";
-        ASSERT_EQUALS(expected, checkSimplifyEnum(code));
-        ASSERT_EQUALS("", errout.str());
-    }
-
-    void enum25() { // ticket #2966 (segmentation fault)
-        const char code[] = "enum x :\n";
-        ASSERT_THROW(checkSimplifyEnum(code), InternalError);
-    }
-
-    void enum26() { // ticket #2975 (segmentation fault)
-        const char code[] = "enum E {} e enum\n";
-        ASSERT_THROW(checkSimplifyEnum(code), InternalError);
-    }
-
-    void enum27() { // ticket #3005 (segmentation fault)
-        const char code[] = "enum : x\n";
-        ASSERT_THROW(checkSimplifyEnum(code), InternalError);
-    }
-
-    void enum28() {
-        const char code[] = "enum { x=0 };\n"
-                            "void f() { char x[4];  memset(x, 0, 4);\n"
-                            "{ x } };\n"
-                            "void g() { x; }";
-        ASSERT_EQUALS("void f ( ) { char x [ 4 ] ; memset ( x , 0 , 4 ) ; { x } } ; void g ( ) { 0 ; }", checkSimplifyEnum(code));
-    }
-
-    void enum29() {  // #3747 - bitwise or value
-        const char code[] = "enum { x=1, y=x|2 }; i = (3==y);";
-        ASSERT_EQUALS("i = 3 == 3 ;", checkSimplifyEnum(code));
-    }
-
-    void enum30() { // #3852 - false positive
-        const char code [] = "class TestIf\n"
-                             "{\n"
-                             "public:\n"
-                             "    enum class Foo\n"
-                             "    {\n"
-                             "      one = 0,\n"
-                             "      two = 1\n"
-                             "    };\n"
-                             "    enum class Bar\n"
-                             "    {\n"
-                             "      one = 0,\n"
-                             "      two = 1\n"
-                             "    };\n"
-                             "};\n"
-                             "int main() {"
-                             "    return TestIf::Bar::two;\n"
-                             "}";
-        ASSERT_EQUALS("class TestIf { public: } ; int main ( ) { return 1 ; }", checkSimplifyEnum(code));
-        ASSERT_EQUALS("", errout.str());
-    }
-
-    void enum31() {  // #3934 - calculation in first item
-        const char code[] = "enum { x=2*32, y }; i = y;";
-        ASSERT_EQUALS("i = 65 ;", checkSimplifyEnum(code));
-    }
-
-    void enum32() {  // #3998 - wrong enum simplification => access violation
-        const char code[] = "enum { x=(32), y=x, z }; { a, z }";
-        ASSERT_EQUALS("{ a , ( 33 ) }", checkSimplifyEnum(code));
-    }
-
-    void enum33() {  // #4015 - segmentation fault
-        const char code[] = "enum { A=SOME_VALUE, B=A };";
-        ASSERT_EQUALS(";", checkSimplifyEnum(code));
-    }
-
-    void enum34() {  // #4141 - division by zero
-        const char code[] = "enum { A=1/0 };";
-        ASSERT_EQUALS(";", checkSimplifyEnum(code));
-    }
-
-    void enum35() {  // #3953 - avoid simplification of type
-        ASSERT_EQUALS("void f ( A * a ) ;", checkSimplifyEnum("enum { A }; void f(A * a) ;"));
-        ASSERT_EQUALS("void f ( A * a ) { }", checkSimplifyEnum("enum { A }; void f(A * a) { }"));
-    }
-
-    void enum36() {  // #4378
-        const char code[] = "struct X { enum Y { a, b }; X(Y) { Y y = (Y)1; } };";
-        ASSERT_EQUALS("struct X { X ( int ) { int y ; y = ( int ) 1 ; } } ;", checkSimplifyEnum(code));
-    }
-
-    void enum37() {  // #4280 - shadow variables
-        const char code1[] = "enum { a, b }; void f(int a) { return a + 1; }";
-        ASSERT_EQUALS("void f ( int a ) { return a + 1 ; }", checkSimplifyEnum(code1));
-
-        const char code2[] = "enum { a, b }; void f() { int a; }";
-        ASSERT_EQUALS("void f ( ) { int a ; }", checkSimplifyEnum(code2));
-
-        const char code3[] = "enum { a, b }; void f() { int *a=do_something(); }";
-        ASSERT_EQUALS("void f ( ) { int * a ; a = do_something ( ) ; }", checkSimplifyEnum(code3));
-
-        const char code4[] = "enum { a, b }; void f() { int &a=x; }";
-        ASSERT_EQUALS("void f ( ) { int & a = x ; }", checkSimplifyEnum(code4));
-
-        // #4857 - not shadow variable
-        checkSimplifyEnum("enum { a,b }; void f() { if (x) { } else if ( x & a ) {} }");
-        ASSERT_EQUALS("", errout.str());
-    }
-
-    void enum38() { // #4463
-        const char code[] = "enum { a,b }; void f() { throw a; }";
-        checkSimplifyEnum(code);
-        ASSERT_EQUALS("", errout.str());
-    }
-
-    void enum39() { // #5145 - fp variable hides enum
-        const char code[] = "enum { A }; void f() { int a = 1 * A; }";
-        checkSimplifyEnum(code);
-        ASSERT_EQUALS("", errout.str());
-    }
-
-    void enum40() {
-        const char code[] = "enum { A=(1<<0)|(1<<1) }; void f() { x = y + A; }";
-        ASSERT_EQUALS("void f ( ) { x = y + ( 3 ) ; }", checkSimplifyEnum(code));
-    }
-
-    void enum41() { // ticket #5212 (valgrind errors during enum simplification)
-        const char code[] = "namespace Foo {\n"
-                            "  enum BarConfig {\n"
-                            "    eBitOne = (1 << 0),\n"
-                            "    eBitTwo = (1 << 1),\n"
-                            "    eAll        = eBitOne|eBitTwo\n"
-                            "  };\n"
-                            "}\n"
-                            "int x = Foo::eAll;";
-        ASSERT_EQUALS("int x ; x = ( 1 ) | 2 ;", checkSimplifyEnum(code));
-    }
-
-    void enum42() { // ticket #5182 (template function call in template value)
-        const char code[] = "enum { A = f<int,2>() };\n"
-                            "a = A;";
-        ASSERT_EQUALS("a = f < int , 2 > ( ) ;", checkSimplifyEnum(code));
-    }
-
-    void enum43() { // lhs in assignment
-        const char code[] = "enum { A, B };\n"
-                            "A = 1;";
-        ASSERT_EQUALS("A = 1 ;", checkSimplifyEnum(code));
-    }
-
-    void enum44() {
-        const char code1[] = "enum format_t { YYYYMMDD = datemask_traits< datemask<'Y', 'Y', 'Y', 'Y', '/', 'M', 'M', '/', 'D', 'D'> >::value, };\n"
-                             "YYYYMMDD;";
-        ASSERT_EQUALS("( datemask_traits < datemask < 'Y' , 'Y' , 'Y' , 'Y' , '/' , 'M' , 'M' , '/' , 'D' , 'D' > > :: value ) ;", checkSimplifyEnum(code1));
-
-        const char code2[] = "enum format_t { YYYYMMDD = datemask_traits< datemask<'Y', 'Y', 'Y', 'Y', '/', 'M', 'M', '/', 'D', 'D'>>::value, };\n"
-                             "YYYYMMDD;";
-        ASSERT_EQUALS("( datemask_traits < datemask < 'Y' , 'Y' , 'Y' , 'Y' , '/' , 'M' , 'M' , '/' , 'D' , 'D' > > :: value ) ;", checkSimplifyEnum(code2));
-    }
-
-    void enumscope1() { // #3949 - don't simplify enum from one function in another function
-        const char code[] = "void foo() { enum { A = 0, B = 1 }; }\n"
-                            "void bar() { int a = A; }";
-        ASSERT_EQUALS("void foo ( ) { } void bar ( ) { int a ; a = A ; }", checkSimplifyEnum(code));
-    }
-
     void duplicateDefinition() { // #3565 - wrongly detects duplicate definition
         Tokenizer tokenizer(&settings0, this);
         std::istringstream istr("x ; return a not_eq x;");
         tokenizer.tokenize(istr, "test.c");
         Token *x_token = tokenizer.list.front()->tokAt(5);
-        ASSERT_EQUALS(false, tokenizer.duplicateDefinition(&x_token, tokenizer.tokens()));
+        ASSERT_EQUALS(false, tokenizer.duplicateDefinition(&x_token));
     }
 
     void removestd() {
@@ -3737,17 +3202,6 @@ private:
         ASSERT_EQUALS(expected, tok(code, false));
     }
 
-    void simplifyStructDecl5() {
-        const char code[] = "<class T>\n"
-                            "{\n"
-                            "    struct {\n"
-                            "        typename D4:typename Base<T*>\n"
-                            "    };\n"
-                            "};\n";
-        //don't crash
-        tok(code, false);
-    }
-
     void simplifyStructDecl6() {
         ASSERT_EQUALS("struct A { "
                       "char integers [ X ] ; "
@@ -3764,6 +3218,19 @@ private:
                       tok("static struct { char x; } a[2];", false));
     }
 
+    void simplifyStructDecl8() {
+        ASSERT_EQUALS("enum A { x , y , z } ; enum A a ; a = x ;", tok("enum A { x, y, z } a(x);", false));
+        ASSERT_EQUALS("enum B { x , y , z } ; enum B b ; b = x ;", tok("enum B { x , y, z } b{x};", false));
+        ASSERT_EQUALS("struct C { int i ; } ; struct C c ; c = { 0 } ;", tok("struct C { int i; } c{0};", false));
+        ASSERT_EQUALS("enum Anonymous0 { x , y , z } ; enum Anonymous0 d ; d = x ;", tok("enum { x, y, z } d(x);", false));
+        ASSERT_EQUALS("enum Anonymous0 { x , y , z } ; enum Anonymous0 e ; e = x ;", tok("enum { x, y, z } e{x};", false));
+        ASSERT_EQUALS("struct Anonymous0 { int i ; } ; struct Anonymous0 f ; f = { 0 } ;", tok("struct { int i; } f{0};", false));
+        ASSERT_EQUALS("enum G : short { x , y , z } ; enum G g ; g = x ;", tok("enum G : short { x, y, z } g(x);", false));
+        ASSERT_EQUALS("enum H : short { x , y , z } ; enum H h ; h = x ;", tok("enum H : short { x, y, z } h{x};", false));
+        ASSERT_EQUALS("enum class I : short { x , y , z } ; enum I i ; i = x ;", tok("enum class I : short { x, y, z } i(x);", false));
+        ASSERT_EQUALS("enum class J : short { x , y , z } ; enum J j ; j = x ;", tok("enum class J : short { x, y, z } j{x};", false));
+    }
+
     void removeUnwantedKeywords() {
         ASSERT_EQUALS("int var ;", tok("register int var ;", true));
         ASSERT_EQUALS("short var ;", tok("register short int var ;", true));
@@ -3771,7 +3238,6 @@ private:
         ASSERT_EQUALS("int foo ( ) { }", tok("__inline int foo ( ) { }", true));
         ASSERT_EQUALS("int foo ( ) { }", tok("__forceinline int foo ( ) { }", true));
         ASSERT_EQUALS("int foo ( ) { }", tok("constexpr int foo() { }", true));
-        ASSERT_EQUALS("class C { int f ( ) ; } ;", tok("class C { int f() override ; };", true));
         ASSERT_EQUALS("class C { int f ( ) ; } ;", tok("class C { int f() final ; };", true));
         ASSERT_EQUALS("void f ( ) { int final [ 10 ] ; }", tok("void f() { int final[10]; }", true));
         ASSERT_EQUALS("int * p ;", tok("int * __restrict p;", "test.c"));
@@ -3806,9 +3272,12 @@ private:
         ASSERT_EQUALS("int f ( ) ;", tok("int __far __syscall f();", true));
         ASSERT_EQUALS("int f ( ) ;", tok("int __far __pascal f();", true));
         ASSERT_EQUALS("int f ( ) ;", tok("int __far __fortran f();", true));
-        ASSERT_EQUALS("int f ( ) ;", tok("int WINAPI f();", true));
-        ASSERT_EQUALS("int f ( ) ;", tok("int APIENTRY f();", true));
-        ASSERT_EQUALS("int f ( ) ;", tok("int CALLBACK f();", true));
+        ASSERT_EQUALS("int f ( ) ;", tok("int WINAPI f();", true, Settings::Win32A));
+        ASSERT_EQUALS("int f ( ) ;", tok("int APIENTRY f();", true, Settings::Win32A));
+        ASSERT_EQUALS("int f ( ) ;", tok("int CALLBACK f();", true, Settings::Win32A));
+
+        // don't simplify Microsoft defines in unix code (#7554)
+        ASSERT_EQUALS("enum E { CALLBACK } ;", tok("enum E { CALLBACK } ;", true, Settings::Unix32));
     }
 
     void simplifyFunctorCall() {
@@ -3865,12 +3334,6 @@ private:
 
     void simplifyVarDecl1() { // ticket # 2682 segmentation fault
         const char code[] = "x a[0] =";
-        tok(code, false);
-        ASSERT_EQUALS("", errout.str());
-    }
-
-    void simplifyVarDecl2() { // ticket # 2834 segmentation fault
-        const char code[] = "std::vector<int>::iterator";
         tok(code, false);
         ASSERT_EQUALS("", errout.str());
     }
@@ -3983,9 +3446,6 @@ private:
                       " int a [ 10 ] ;"
                       " memset ( a + 4 , 0 , 80 ) ;"
                       " }", tok(code, true));
-
-        // Don't crash
-        tok("int", true);
     }
 
     void simplifyCharAt() { // ticket #4481

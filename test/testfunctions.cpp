@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -216,13 +216,13 @@ private:
               "{\n"
               "    char *x = gets(a);\n"
               "}");
-        ASSERT_EQUALS("[test.cpp:3]: (warning) Obsolete function 'gets' called. It is recommended to use 'fgets' instead.\n", errout.str());
+        ASSERT_EQUALS("[test.cpp:3]: (warning) Obsolete function 'gets' called. It is recommended to use 'fgets' or 'gets_s' instead.\n", errout.str());
 
         check("void f()\n"
               "{\n"
               "    foo(x, gets(a));\n"
               "}");
-        ASSERT_EQUALS("[test.cpp:3]: (warning) Obsolete function 'gets' called. It is recommended to use 'fgets' instead.\n", errout.str());
+        ASSERT_EQUALS("[test.cpp:3]: (warning) Obsolete function 'gets' called. It is recommended to use 'fgets' or 'gets_s' instead.\n", errout.str());
     }
 
     void prohibitedFunctions_alloca() {
@@ -230,7 +230,7 @@ private:
               "{\n"
               "    char *x = alloca(10);\n"
               "}", "test.cpp");  // #4382 - there are no VLAs in C++
-        ASSERT_EQUALS("[test.cpp:3]: (warning) Obsolete function 'alloca' called. In C++11 and later it is recommended to use std::array<> instead.\n", errout.str());
+        ASSERT_EQUALS("[test.cpp:3]: (warning) Obsolete function 'alloca' called.\n", errout.str());
 
         check("void f()\n"
               "{\n"
@@ -244,6 +244,12 @@ private:
               "{\n"
               "    char *x = alloca(10);\n"
               "}", "test.cpp");  // #4382 - there are no VLAs in C++
+        ASSERT_EQUALS("", errout.str());
+
+        check("void f()\n"
+              "{\n"
+              "    char *x = alloca(10);\n"
+              "}", "test.c"); // #7558 - no alternative to alloca in C89
         ASSERT_EQUALS("", errout.str());
 
         check("void f()\n"
@@ -276,8 +282,8 @@ private:
               "    char *x = std::gets(str);\n"
               "    char *y = gets(str);\n"
               "}");
-        ASSERT_EQUALS("[test.cpp:3]: (warning) Obsolete function 'gets' called. It is recommended to use 'fgets' instead.\n"
-                      "[test.cpp:4]: (warning) Obsolete function 'gets' called. It is recommended to use 'fgets' instead.\n", errout.str());
+        ASSERT_EQUALS("[test.cpp:3]: (warning) Obsolete function 'gets' called. It is recommended to use 'fgets' or 'gets_s' instead.\n"
+                      "[test.cpp:4]: (warning) Obsolete function 'gets' called. It is recommended to use 'fgets' or 'gets_s' instead.\n", errout.str());
     }
 
     // multiple use
@@ -287,7 +293,7 @@ private:
               "    char *x = std::gets(str);\n"
               "    usleep( 1000 );\n"
               "}");
-        ASSERT_EQUALS("[test.cpp:3]: (warning) Obsolete function 'gets' called. It is recommended to use 'fgets' instead.\n"
+        ASSERT_EQUALS("[test.cpp:3]: (warning) Obsolete function 'gets' called. It is recommended to use 'fgets' or 'gets_s' instead.\n"
                       "[test.cpp:4]: (style) Obsolescent function 'usleep' called. It is recommended to use 'nanosleep' or 'setitimer' instead.\n", errout.str());
     }
 
@@ -298,7 +304,7 @@ private:
               "    char s [ 10 ] ;\n"
               "    gets ( s ) ;\n"
               "}");
-        ASSERT_EQUALS("[test.cpp:5]: (warning) Obsolete function 'gets' called. It is recommended to use 'fgets' instead.\n", errout.str());
+        ASSERT_EQUALS("[test.cpp:5]: (warning) Obsolete function 'gets' called. It is recommended to use 'fgets' or 'gets_s' instead.\n", errout.str());
 
         check("int getcontext(ucontext_t *ucp);\n"
               "int f (ucontext_t *ucp)\n"
@@ -402,6 +408,15 @@ private:
         ASSERT_EQUALS("[test.cpp:1]: (error) Invalid memset() argument nr 3. A non-boolean value is required.\n", errout.str());
 
         check("int f() { memset(a,b,sizeof(a)!=0); }");
+        ASSERT_EQUALS("[test.cpp:1]: (error) Invalid memset() argument nr 3. A non-boolean value is required.\n", errout.str());
+
+        check("int f() { memset(a,b,!c); }");
+        ASSERT_EQUALS("[test.cpp:1]: (error) Invalid memset() argument nr 3. A non-boolean value is required.\n", errout.str());
+
+        // Ticket #6990
+        check("int f(bool c) { memset(a,b,c); }");
+        ASSERT_EQUALS("[test.cpp:1]: (error) Invalid memset() argument nr 3. A non-boolean value is required.\n", errout.str());
+        check("int f() { memset(a,b,true); }");
         ASSERT_EQUALS("[test.cpp:1]: (error) Invalid memset() argument nr 3. A non-boolean value is required.\n", errout.str());
 
         // Ticket #6588 (c mode)

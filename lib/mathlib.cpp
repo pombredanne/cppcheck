@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include "mathlib.h"
 #include "errorlogger.h"
 
+#include <algorithm> // VS2013: std::min and std::max
 #include <cmath>
 #include <cctype>
 #include <cstdlib>
@@ -38,7 +39,6 @@
 #define ISNAN(x)      (std::isnan(x))
 #endif
 
-
 MathLib::value::value(const std::string &s) :
     intValue(0), doubleValue(0), isUnsigned(false)
 {
@@ -49,10 +49,13 @@ MathLib::value::value(const std::string &s) :
     }
 
     if (!MathLib::isInt(s))
-        throw InternalError(0, "Invalid value");
+        throw InternalError(0, "Invalid value: " + s);
 
     type = MathLib::value::INT;
     intValue = MathLib::toLongNumber(s);
+
+    if (isIntHex(s) && intValue < 0)
+        isUnsigned = true;
 
     // read suffix
     if (s.size() >= 2U) {
@@ -65,7 +68,8 @@ MathLib::value::value(const std::string &s) :
                     type = MathLib::value::LONG;
                 else if (type == MathLib::value::LONG)
                     type = MathLib::value::LONGLONG;
-            }
+            } else if (i > 2U && c == '4' && s[i-1] == '6' && s[i-2] == 'i')
+                type = MathLib::value::LONGLONG;
         }
     }
 }
@@ -93,9 +97,10 @@ std::string MathLib::value::str() const
         return ret.substr(0, pos+1);
     }
 
-    ostr << intValue;
     if (isUnsigned)
-        ostr << "U";
+        ostr << static_cast<biguint>(intValue) << "U";
+    else
+        ostr << intValue;
     if (type == MathLib::value::LONG)
         ostr << "L";
     else if (type == MathLib::value::LONGLONG)
@@ -259,6 +264,24 @@ MathLib::value MathLib::value::add(int v) const
     return temp;
 }
 
+MathLib::value MathLib::value::shiftLeft(const MathLib::value &v) const
+{
+    if (!isInt() || !v.isInt())
+        throw InternalError(0, "Shift operand is not integer");
+    MathLib::value ret(*this);
+    ret.intValue <<= v.intValue;
+    return ret;
+}
+
+MathLib::value MathLib::value::shiftRight(const MathLib::value &v) const
+{
+    if (!isInt() || !v.isInt())
+        throw InternalError(0, "Shift operand is not integer");
+    MathLib::value ret(*this);
+    ret.intValue >>= v.intValue;
+    return ret;
+}
+
 
 MathLib::biguint MathLib::toULongNumber(const std::string & str)
 {
@@ -314,15 +337,6 @@ MathLib::biguint MathLib::toULongNumber(const std::string & str)
     return ret;
 }
 
-static bool isOctalDigitString(const std::string& str)
-{
-    for (std::string::const_iterator it=str.begin(); it!=str.end(); ++it) {
-        if (!MathLib::isOctalDigit(*it))
-            return false;
-    }
-    return true;
-}
-
 static unsigned int encodeMultiChar(const std::string& str)
 {
     unsigned int retval(str.front());
@@ -336,30 +350,52 @@ MathLib::bigint MathLib::characterLiteralToLongNumber(const std::string& str)
 {
     if (str.empty())
         return 0; // for unit-testing...
-    if (str.size()==1)
-        return str[0] & 0xff;
-    if (str[0] != '\\') {
-        // C99 6.4.4.4
-        // The value of an integer character constant containing more than one character (e.g., 'ab'),
-        // or containing a character or escape sequence that does not map to a single-byte execution character,
-        // is implementation-defined.
-        // clang and gcc seem to use the following encoding: 'AB' as (('A' << 8) | 'B')
-        return encodeMultiChar(str);
-    }
-    const std::string& str1 = str.substr(1);
 
-    switch (str1[0]) {
-    case 'x':
-        return toLongNumber("0x" + str.substr(2));
-    case 'u': // 16-bit unicode character
-        return encodeMultiChar(str1);
-    case 'U': // 32-bit unicode character
-        return encodeMultiChar(str1);
-    default: {
-        char c;
-        switch (str.size()-1) {
-        case 1:
-            switch (str[1]) {
+    // C99 6.4.4.4
+    // The value of an integer character constant containing more than one character (e.g., 'ab'),
+    // or containing a character or escape sequence that does not map to a single-byte execution character,
+    // is implementation-defined.
+    // clang and gcc seem to use the following encoding: 'AB' as (('A' << 8) | 'B')
+    const std::string& normStr = normalizeCharacterLiteral(str);
+    return encodeMultiChar(normStr);
+}
+
+std::string MathLib::normalizeCharacterLiteral(const std::string& iLiteral)
+{
+    std::string normalizedLiteral;
+    const std::string::size_type iLiteralLen = iLiteral.size();
+    for (std::string::size_type idx = 0; idx < iLiteralLen ; ++idx) {
+        if (iLiteral[idx] != '\\') {
+            normalizedLiteral.push_back(iLiteral[idx]);
+            continue;
+        }
+        ++idx;
+        if (idx == iLiteralLen) {
+            throw InternalError(0, "Internal Error. MathLib::normalizeCharacterLiteral: Unhandled char constant '" + iLiteral + "'.");
+        }
+        switch (iLiteral[idx]) {
+        case 'x':
+            // Hexa-decimal number: skip \x and interpret the next two characters
+        {
+            if (++idx == iLiteralLen)
+                throw InternalError(0, "Internal Error. MathLib::normalizeCharacterLiteral: Unhandled char constant '" + iLiteral + "'.");
+            std::string tempBuf;
+            tempBuf.push_back(iLiteral[idx]);
+            if (++idx != iLiteralLen)
+                tempBuf.push_back(iLiteral[idx]);
+            normalizedLiteral.push_back(static_cast<char>(MathLib::toULongNumber("0x" + tempBuf)));
+            continue;
+        }
+        case 'u':
+        case 'U':
+            // Unicode string; just skip the \u or \U
+            if (idx + 1 == iLiteralLen)
+                throw InternalError(0, "Internal Error. MathLib::characterLiteralToLongNumber: Unhandled char constant '" + iLiteral + "'.");
+            continue;
+        }
+        // Single digit octal number
+        if (1 == iLiteralLen - idx) {
+            switch (iLiteral[idx]) {
             case '0':
             case '1':
             case '2':
@@ -368,52 +404,59 @@ MathLib::bigint MathLib::characterLiteralToLongNumber(const std::string& str)
             case '5':
             case '6':
             case '7':
-                return str[1]-'0';
+                normalizedLiteral.push_back(iLiteral[idx]-'0');
+                break;
             case 'a':
-                c = '\a';
+                normalizedLiteral.push_back('\a');
                 break;
             case 'b':
-                c = '\b';
+                normalizedLiteral.push_back('\b');
                 break;
             case 'e':
-                c = 0x1B; // clang, gcc, tcc interpret this as 0x1B - escape character
+                normalizedLiteral.push_back(0x1B); // clang, gcc, tcc interpnormalizedLiteral this as 0x1B - escape character
                 break;
             case 'f':
-                c = '\f';
+                normalizedLiteral.push_back('\f');
                 break;
             case 'n':
-                c = '\n';
+                normalizedLiteral.push_back('\n');
                 break;
             case 'r':
-                c = '\r';
+                normalizedLiteral.push_back('\r');
                 break;
             case 't':
-                c = '\t';
+                normalizedLiteral.push_back('\t');
                 break;
             case 'v':
-                c = '\v';
+                normalizedLiteral.push_back('\v');
                 break;
             case '\\':
             case '\?':
             case '\'':
             case '\"':
-                c = str[1];
+                normalizedLiteral.push_back(iLiteral[idx]);
                 break;
             default:
-                throw InternalError(0, "Internal Error. MathLib::toLongNumber: Unhandled char constant '" + str + "'.");
+                throw InternalError(0, "Internal Error. MathLib::normalizeCharacterLiteral: Unhandled char constant '" + iLiteral + "'.");
             }
-            return c & 0xff;
-        case 2:
-        case 3:
-            if (isOctalDigitString(str1))
-                return toLongNumber("0" + str1);
-            break;
-
+            continue;
         }
+        // 2-3 digit octal number
+        if (!MathLib::isOctalDigit(iLiteral[idx]))
+            throw InternalError(0, "Internal Error. MathLib::normalizeCharacterLiteral: Unhandled char constant '" + iLiteral + "'.");
+        std::string tempBuf;
+        tempBuf.push_back(iLiteral[idx]);
+        ++idx;
+        if (MathLib::isOctalDigit(iLiteral[idx])) {
+            tempBuf.push_back(iLiteral[idx]);
+            ++idx;
+            if (MathLib::isOctalDigit(iLiteral[idx])) {
+                tempBuf.push_back(iLiteral[idx]);
+            }
+        }
+        normalizedLiteral.push_back(static_cast<char>(MathLib::toLongNumber("0" + tempBuf)));
     }
-    }
-
-    throw InternalError(0, "Internal Error. MathLib::toLongNumber: Unhandled char constant '" + str + "'.");
+    return normalizedLiteral;
 }
 
 MathLib::bigint MathLib::toLongNumber(const std::string & str)
@@ -787,7 +830,7 @@ bool MathLib::isFloatHex(const std::string& s)
 
 bool MathLib::isValidIntegerSuffix(std::string::const_iterator it, std::string::const_iterator end)
 {
-    enum {START, SUFFIX_U, SUFFIX_UL, SUFFIX_ULL, SUFFIX_L, SUFFIX_LU, SUFFIX_LL, SUFFIX_LLU, SUFFIX_I, SUFFIX_I6, SUFFIX_I64} state = START;
+    enum {START, SUFFIX_U, SUFFIX_UL, SUFFIX_ULL, SUFFIX_L, SUFFIX_LU, SUFFIX_LL, SUFFIX_LLU, SUFFIX_I, SUFFIX_I6, SUFFIX_I64, SUFFIX_UI, SUFFIX_UI6, SUFFIX_UI64} state = START;
     for (; it != end; ++it) {
         switch (state) {
         case START:
@@ -803,6 +846,8 @@ bool MathLib::isValidIntegerSuffix(std::string::const_iterator it, std::string::
         case SUFFIX_U:
             if (*it == 'l' || *it == 'L')
                 state = SUFFIX_UL; // UL
+            else if (*it == 'i')
+                state = SUFFIX_UI;
             else
                 return false;
             break;
@@ -840,6 +885,18 @@ bool MathLib::isValidIntegerSuffix(std::string::const_iterator it, std::string::
             else
                 return false;
             break;
+        case SUFFIX_UI:
+            if (*it == '6')
+                state = SUFFIX_UI6;
+            else
+                return false;
+            break;
+        case SUFFIX_UI6:
+            if (*it == '4')
+                state = SUFFIX_UI64;
+            else
+                return false;
+            break;
         default:
             return false;
         }
@@ -851,7 +908,8 @@ bool MathLib::isValidIntegerSuffix(std::string::const_iterator it, std::string::
             (state == SUFFIX_LL)  ||
             (state == SUFFIX_ULL) ||
             (state == SUFFIX_LLU) ||
-            (state == SUFFIX_I64));
+            (state == SUFFIX_I64) ||
+            (state == SUFFIX_UI64));
 }
 
 /*! \brief Does the string represent a binary number?
@@ -944,33 +1002,41 @@ bool MathLib::isInt(const std::string & s)
     return isDec(s) || isIntHex(s) || isOct(s) || isBin(s);
 }
 
+static std::string getsuffix(const std::string& value)
+{
+    if (value.size() > 3 && value[value.size() - 3] == 'i' && value[value.size() - 2] == '6' && value[value.size() - 1] == '4') {
+        if (value[value.size() - 4] == 'u')
+            return "ULL";
+        return "LL";
+    }
+    bool isUnsigned = false;
+    unsigned int longState = 0;
+    for (std::size_t i = 1U; i < value.size(); ++i) {
+        char c = value[value.size() - i];
+        if (c == 'u' || c == 'U')
+            isUnsigned = true;
+        else if (c == 'L' || c == 'l')
+            longState++;
+        else break;
+    }
+    if (longState == 0)
+        return isUnsigned ? "U" : "";
+    if (longState == 1)
+        return isUnsigned ? "UL" : "L";
+    if (longState == 2)
+        return isUnsigned ? "ULL" : "LL";
+    else return "";
+}
+
 static std::string intsuffix(const std::string & first, const std::string & second)
 {
-    std::string suffix1, suffix2;
-    for (std::size_t i = 1U; i < first.size(); ++i) {
-        char c = first[first.size() - i];
-        if (c == 'l' || c == 'u')
-            c = c - 'a' + 'A';
-        if (c != 'L' && c != 'U')
-            break;
-        suffix1 = c + suffix1;
-    }
-    for (std::size_t i = 1U; i < second.size(); ++i) {
-        char c = second[second.size() - i];
-        if (c == 'l' || c == 'u')
-            c = c - 'a' + 'A';
-        if (c != 'L' && c != 'U')
-            break;
-        suffix2 = c + suffix2;
-    }
-
-    if (suffix1 == "ULL" || suffix2 == "ULL"
-        || suffix1 == "LLU" || suffix2 == "LLU")
+    std::string suffix1 = getsuffix(first);
+    std::string suffix2 = getsuffix(second);
+    if (suffix1 == "ULL" || suffix2 == "ULL")
         return "ULL";
     if (suffix1 == "LL" || suffix2 == "LL")
         return "LL";
-    if (suffix1 == "UL" || suffix2 == "UL"
-        || suffix1 == "LU" || suffix2 == "LU")
+    if (suffix1 == "UL" || suffix2 == "UL")
         return "UL";
     if (suffix1 == "L" || suffix2 == "L")
         return "L";
@@ -1207,6 +1273,45 @@ bool MathLib::isOctalDigit(char c)
     return (c >= '0' && c <= '7');
 }
 
+bool MathLib::isDigitSeparator(const std::string& iCode, std::string::size_type iPos)
+{
+    if (iPos == 0 || iPos >= iCode.size() || iCode[iPos] != '\'')
+        return false;
+    std::string::size_type i = iPos - 1;
+    while (std::isxdigit(iCode[i])) {
+        if (i == 0)
+            return true; // Only xdigits before '
+        --i;
+    }
+    if (i == iPos - 1) { // No xdigit before '
+        return false;
+    } else {
+        switch (iCode[i]) {
+        case ' ':
+        case '.':
+        case ',':
+        case 'x':
+        case '(':
+        case '{':
+        case '+':
+        case '-':
+        case '*':
+        case '%':
+        case '/':
+        case '&':
+        case '|':
+        case '^':
+        case '~':
+        case '=':
+            return true;
+        case '\'':
+            return isDigitSeparator(iCode, i);
+        default:
+            return false;
+        }
+    }
+}
+
 MathLib::value operator+(const MathLib::value &v1, const MathLib::value &v2)
 {
     return MathLib::value::calc('+',v1,v2);
@@ -1245,4 +1350,14 @@ MathLib::value operator|(const MathLib::value &v1, const MathLib::value &v2)
 MathLib::value operator^(const MathLib::value &v1, const MathLib::value &v2)
 {
     return MathLib::value::calc('^',v1,v2);
+}
+
+MathLib::value operator<<(const MathLib::value &v1, const MathLib::value &v2)
+{
+    return v1.shiftLeft(v2);
+}
+
+MathLib::value operator>>(const MathLib::value &v1, const MathLib::value &v2)
+{
+    return v1.shiftRight(v2);
 }

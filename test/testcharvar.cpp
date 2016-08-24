@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,7 +30,9 @@ private:
     Settings settings;
 
     void run() {
+        settings.platform(Settings::Unspecified);
         settings.addEnabled("warning");
+        settings.addEnabled("portability");
 
         TEST_CASE(array_index_1);
         TEST_CASE(array_index_2);
@@ -66,6 +68,14 @@ private:
               "    char ch = 0x80;\n"
               "    buf[ch] = 0;\n"
               "}");
+        ASSERT_EQUALS("[test.cpp:5]: (portability) 'char' type used as array index.\n", errout.str());
+
+        check("int buf[256];\n"
+              "void foo()\n"
+              "{\n"
+              "    char ch = 0;\n"
+              "    buf[ch] = 0;\n"
+              "}");
         ASSERT_EQUALS("", errout.str());
 
         check("int buf[256];\n"
@@ -77,9 +87,72 @@ private:
         ASSERT_EQUALS("[test.cpp:5]: (warning) Signed 'char' type used as array index.\n", errout.str());
 
         check("int buf[256];\n"
+              "void foo()\n"
+              "{\n"
+              "    signed char ch = 0;\n"
+              "    buf[ch] = 0;\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
+
+        check("int buf[256];\n"
+              "void foo()\n"
+              "{\n"
+              "    char ch = 0x80;\n"
+              "    buf[ch] = 0;\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:5]: (portability) 'char' type used as array index.\n", errout.str());
+
+        check("int buf[256];\n"
               "void foo(signed char ch)\n"
               "{\n"
               "    buf[ch] = 0;\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
+
+        check("int buf[256];\n"
+              "void foo(char ch)\n"
+              "{\n"
+              "    buf[ch] = 0;\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
+
+        check("void foo(char* buf)\n"
+              "{\n"
+              "    char ch = 0x80;"
+              "    buf[ch] = 0;\n"
+              "}");
+        ASSERT_EQUALS("[test.cpp:3]: (portability) 'char' type used as array index.\n", errout.str());
+
+        check("void foo(char* buf)\n"
+              "{\n"
+              "    char ch = 0;"
+              "    buf[ch] = 0;\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
+
+        check("void foo(char* buf)\n"
+              "{\n"
+              "    buf['A'] = 0;\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
+
+        check("void foo(char* buf, char ch)\n"
+              "{\n"
+              "    buf[ch] = 0;\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
+
+        check("int flags[256];\n"
+              "void foo(const char* str)\n"
+              "{\n"
+              "    flags[*str] = 0;\n"
+              "}");
+        ASSERT_EQUALS("", errout.str());
+
+        check("int flags[256];\n"
+              "void foo(const char* str)\n"
+              "{\n"
+              "    flags[(unsigned char)*str] = 0;\n"
               "}");
         ASSERT_EQUALS("", errout.str());
 

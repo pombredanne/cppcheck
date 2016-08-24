@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,8 @@
 
 //---------------------------------------------------------------------------
 
+// CWE ids used
+static const struct CWE CWE398(398U);   // Indicator of Poor Code Quality
 
 // Register this check class (by creating a static instance of it)
 namespace {
@@ -42,7 +44,7 @@ void CheckAssert::assertWithSideEffects()
 
         const Token *endTok = tok->next()->link();
         for (const Token* tmp = tok->next(); tmp != endTok; tmp = tmp->next()) {
-            checkVariableAssignment(tmp);
+            checkVariableAssignment(tmp, tok->scope());
 
             if (tmp->tokType() == Token::eFunction) {
                 const Function* f = tmp->function();
@@ -92,7 +94,7 @@ void CheckAssert::sideEffectInAssertError(const Token *tok, const std::string& f
                 "Non-pure function: '" + functionName + "' is called inside assert statement. "
                 "Assert statements are removed from release builds so the code inside "
                 "assert statement is not executed. If the code is needed also in release "
-                "builds, this is a bug.");
+                "builds, this is a bug.", CWE398, false);
 }
 
 void CheckAssert::assignmentInAssertError(const Token *tok, const std::string& varname)
@@ -102,15 +104,24 @@ void CheckAssert::assignmentInAssertError(const Token *tok, const std::string& v
                 "Variable '" + varname + "' is modified insert assert statement. "
                 "Assert statements are removed from release builds so the code inside "
                 "assert statement is not executed. If the code is needed also in release "
-                "builds, this is a bug.");
+                "builds, this is a bug.", CWE398, false);
 }
 
 // checks if side effects happen on the variable prior to tmp
-void CheckAssert::checkVariableAssignment(const Token* assignTok)
+void CheckAssert::checkVariableAssignment(const Token* assignTok, const Scope *assertionScope)
 {
     const Variable* prevVar = assignTok->previous()->variable();
     if (!prevVar)
         return;
+
+    // Variable declared in inner scope in assert => dont warn
+    if (assertionScope != prevVar->scope()) {
+        const Scope *s = prevVar->scope();
+        while (s && s != assertionScope)
+            s = s->nestedIn;
+        if (s == assertionScope)
+            return;
+    }
 
     // assignment
     if (assignTok->isAssignmentOp() || assignTok->tokType() == Token::eIncDecOp) {

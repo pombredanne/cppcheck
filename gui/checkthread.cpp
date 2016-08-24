@@ -1,6 +1,6 @@
 /*
  * Cppcheck - A tool for static C/C++ code analysis
- * Copyright (C) 2007-2015 Cppcheck team.
+ * Copyright (C) 2007-2016 Cppcheck team.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,9 +44,8 @@ void CheckThread::Check(const Settings &settings)
 void CheckThread::run()
 {
     mState = Running;
-    QString file;
-    file = mResult.GetNextFile();
 
+    QString file = mResult.GetNextFile();
     while (!file.isEmpty() && mState == Running) {
         qDebug() << "Checking file" << file;
         mCppcheck.check(file.toStdString());
@@ -55,6 +54,18 @@ void CheckThread::run()
         if (mState == Running)
             file = mResult.GetNextFile();
     }
+
+    ImportProject::FileSettings fileSettings = mResult.GetNextFileSettings();
+    while (!fileSettings.filename.empty() && mState == Running) {
+        file = QString::fromStdString(fileSettings.filename);
+        qDebug() << "Checking file" << file;
+        mCppcheck.check(fileSettings);
+        emit FileChecked(file);
+
+        if (mState == Running)
+            fileSettings = mResult.GetNextFileSettings();
+    }
+
     if (mState == Running)
         mState = Ready;
     else

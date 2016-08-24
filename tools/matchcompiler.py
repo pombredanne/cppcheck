@@ -1,7 +1,7 @@
 #!/usr/bin/python
 #
 # Cppcheck - A tool for static C/C++ code analysis
-# Copyright (C) 2007-2015 Daniel Marjamaeki and Cppcheck team.
+# Copyright (C) 2007-2016 Cppcheck team.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import io
 import os
 import sys
 import re
@@ -83,6 +84,8 @@ class MatchCompiler:
     def _compileCmd(self, tok):
         if tok == '%any%':
             return 'true'
+        elif tok == '%assign%':
+            return 'tok->isAssignmentOp()'
         elif tok == '%bool%':
             return 'tok->isBoolean()'
         elif tok == '%char%':
@@ -157,7 +160,7 @@ class MatchCompiler:
                 ret += '        ' + returnStatement
 
             # a|b|c
-            elif tok.find('|') >= 0 and tok != '||' and tok != '|' and tok != '|=':
+            elif tok.find('|') > 0:
                 tokens2 = tok.split('|')
                 logicalOp = None
                 neg = None
@@ -602,7 +605,7 @@ class MatchCompiler:
     def convertFile(self, srcname, destname, line_directive):
         self._reset()
 
-        fin = open(srcname, "rt")
+        fin = io.open(srcname, "rt", encoding="us-ascii")
         srclines = fin.readlines()
         fin.close()
 
@@ -635,7 +638,7 @@ class MatchCompiler:
         if line_directive:
             lineno = '#line 1 "' + srcname + '"\n'
 
-        fout = open(destname, 'wt')
+        fout = io.open(destname, 'wt', encoding="us-ascii")
         fout.write(header + strFunctions + lineno + code)
         fout.close()
 
